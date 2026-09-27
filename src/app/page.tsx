@@ -264,6 +264,11 @@ export default function App() {
   const handleInputChange = (fieldPath: string, value: string) => {
     if (!selectedLead) return;
     
+    // Automatically convert em-dash to regular hyphen in draft messages
+    if (fieldPath.startsWith('draft_message')) {
+      value = value.replace(/—/g, '-');
+    }
+
     const keys = fieldPath.split('.');
     const updatedLead = JSON.parse(JSON.stringify(selectedLead));
     
@@ -336,8 +341,8 @@ export default function App() {
         body: JSON.stringify({
           leadId: lead.lead_id,
           to: lead.contact_info?.email,
-          subject: lead.draft_message?.subject,
-          body: lead.draft_message?.body
+          subject: (lead.draft_message?.subject || '').replace(/—/g, '-'),
+          body: (lead.draft_message?.body || '').replace(/—/g, '-')
         })
       });
       const data = await res.json();
@@ -911,12 +916,12 @@ export default function App() {
                 <h3>WhatsApp Outreach</h3>
                 <div className="mail">
                   <div className="bar">
-                    <button className="btn" onClick={() => copyToClipboard(selectedLead.draft_message?.whatsapp || '')}>Copy Message</button>
-                    <a className="btn primary" href={`https://wa.me/${selectedLead.contact_info?.phone_whatsapp?.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(selectedLead.draft_message?.whatsapp || '')}`} target="_blank" rel="noreferrer">Open WhatsApp</a>
+                    <button className="btn" onClick={() => copyToClipboard((selectedLead.draft_message?.whatsapp || '').replace(/—/g, '-'))}>Copy Message</button>
+                    <a className="btn primary" href={`https://wa.me/${selectedLead.contact_info?.phone_whatsapp?.replace(/[^0-9]/g, '')}?text=${encodeURIComponent((selectedLead.draft_message?.whatsapp || '').replace(/—/g, '-'))}`} target="_blank" rel="noreferrer">Open WhatsApp</a>
                   </div>
                   <textarea 
                     style={{minHeight: '220px'}}
-                    value={selectedLead.draft_message?.whatsapp || ''}
+                    value={(selectedLead.draft_message?.whatsapp || '').replace(/—/g, '-')}
                     onChange={(e) => handleInputChange('draft_message.whatsapp', e.target.value)}
                   />
                 </div>
@@ -930,7 +935,7 @@ export default function App() {
                     <div className="bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
                       <div className="to"><strong>To:</strong> {selectedLead.contact_info?.email || 'No email provided'}</div>
                       <div style={{ display: 'flex', gap: '8px' }}>
-                        <button className="btn" onClick={() => copyToClipboard(selectedLead.draft_message?.body || '')}>Copy Body</button>
+                        <button className="btn" onClick={() => copyToClipboard((selectedLead.draft_message?.body || '').replace(/—/g, '-'))}>Copy Body</button>
                         <button 
                           className="btn primary" 
                           onClick={() => handleReviewAndSend(selectedLead)} 
@@ -945,13 +950,13 @@ export default function App() {
                       <span className="lbl">Subject:</span>
                       <input 
                         type="text" 
-                        value={selectedLead.draft_message?.subject || ''} 
+                        value={(selectedLead.draft_message?.subject || '').replace(/—/g, '-')} 
                         onChange={(e) => handleInputChange('draft_message.subject', e.target.value)}
                       />
                     </div>
                     <textarea 
                       style={{minHeight: '350px'}}
-                      value={selectedLead.draft_message?.body || ''} 
+                      value={(selectedLead.draft_message?.body || '').replace(/—/g, '-')} 
                       onChange={(e) => handleInputChange('draft_message.body', e.target.value)}
                     />
                   </div>

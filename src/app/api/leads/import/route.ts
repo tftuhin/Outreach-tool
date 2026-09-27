@@ -60,9 +60,9 @@ export async function POST(request: Request) {
         lead.other_channels_notes || null,
         lead.sources || null,
         lead.local_competitors || null,
-        lead.whatsapp_message || null,
-        lead.email_subject || null,
-        lead.email_body || null
+        lead.whatsapp_message ? lead.whatsapp_message.replace(/—/g, '-') : null,
+        lead.email_subject ? lead.email_subject.replace(/—/g, '-') : null,
+        lead.email_body ? lead.email_body.replace(/—/g, '-') : null
       ];
 
       await client.query(query, values);

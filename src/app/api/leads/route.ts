@@ -9,6 +9,20 @@ export async function GET() {
   
   try {
     await client.connect();
+
+    // Normalize em-dashes to hyphens in database draft fields
+    await client.query(`
+      UPDATE leads 
+      SET 
+        whatsapp_message = REPLACE(whatsapp_message, '—', '-'),
+        email_subject = REPLACE(email_subject, '—', '-'),
+        email_body = REPLACE(email_body, '—', '-')
+      WHERE 
+        whatsapp_message LIKE '%—%' 
+        OR email_subject LIKE '%—%' 
+        OR email_body LIKE '%—%'
+    `);
+
     const result = await client.query("SELECT * FROM leads ORDER BY CAST(REPLACE(id, 'lead_', '') AS INTEGER) ASC");
     
     // Map db columns to frontend nested structure
@@ -50,9 +64,9 @@ export async function GET() {
         automation_angle: row.automation_angle,
       },
       draft_message: {
-        whatsapp: row.whatsapp_message,
-        subject: row.email_subject,
-        body: row.email_body,
+        whatsapp: (row.whatsapp_message || '').replace(/—/g, '-'),
+        subject: (row.email_subject || '').replace(/—/g, '-'),
+        body: (row.email_body || '').replace(/—/g, '-'),
       },
       status: row.status,
     }));
@@ -134,9 +148,9 @@ export async function POST(request: Request) {
       lead.marketing_angles?.snapshot || lead.snapshot || '',
       lead.marketing_angles?.growth_signals || lead.growth_signals || '',
       lead.marketing_angles?.automation_angle || lead.automation_angle || '',
-      lead.draft_message?.whatsapp || lead.whatsapp_message || '',
-      lead.draft_message?.subject || lead.email_subject || '',
-      lead.draft_message?.body || lead.email_body || '',
+      (lead.draft_message?.whatsapp || lead.whatsapp_message || '').replace(/—/g, '-'),
+      (lead.draft_message?.subject || lead.email_subject || '').replace(/—/g, '-'),
+      (lead.draft_message?.body || lead.email_body || '').replace(/—/g, '-'),
       lead.status || 'pending'
     ]);
 
