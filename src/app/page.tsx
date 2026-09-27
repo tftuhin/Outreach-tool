@@ -27,6 +27,57 @@ const CopyIcon = () => (
   </svg>
 );
 
+const stripMessageTrail = (text: string): { cleanBody: string; trail?: string } => {
+  if (!text) return { cleanBody: '' };
+  const normalized = text.replace(/—/g, '-');
+
+  const headerPatterns = [
+    /\r?\n\s*On\s+[\s\S]{1,300}?wrote:\s*(\r?\n|$)/i,
+    /\r?\n\s*-+\s*Original Message\s*-+/i,
+    /\r?\n\s*From:\s*[^\n]+\r?\n\s*(?:Sent|Date):\s*[^\n]+\r?\n\s*To:\s*[^\n]+/i,
+    /\r?\n_{15,}\r?\n/,
+    /\r?\n\s*-+\s*Forwarded message\s*-+/i,
+    /\r?\n\s*Begin forwarded message:\s*/i
+  ];
+
+  for (const pattern of headerPatterns) {
+    const match = pattern.exec(normalized);
+    if (match && match.index !== undefined) {
+      const before = normalized.substring(0, match.index).trim();
+      const after = normalized.substring(match.index).trim();
+      if (before.length > 0) {
+        return { cleanBody: before, trail: after };
+      }
+    }
+  }
+
+  const lines = normalized.split(/\r?\n/);
+  const firstQuoteIdx = lines.findIndex(l => l.trim().startsWith('>'));
+  if (firstQuoteIdx > 0) {
+    const before = lines.slice(0, firstQuoteIdx).join('\n').trim();
+    const after = lines.slice(firstQuoteIdx).join('\n').trim();
+    if (before.length > 0) {
+      return { cleanBody: before, trail: after };
+    }
+  } else if (firstQuoteIdx === 0) {
+    const nonQuoteLines: string[] = [];
+    const quoteLines: string[] = [];
+    for (const line of lines) {
+      if (line.trim().startsWith('>') || /^\s*On\s+[\s\S]+?wrote:\s*$/i.test(line)) {
+        quoteLines.push(line);
+      } else {
+        nonQuoteLines.push(line);
+      }
+    }
+    const clean = nonQuoteLines.join('\n').trim();
+    if (clean.length > 0) {
+      return { cleanBody: clean, trail: quoteLines.join('\n').trim() };
+    }
+  }
+
+  return { cleanBody: normalized.trim() };
+};
+
 export default function App() {
   const [activeTab, setActiveTab] = useState("pending");
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
@@ -76,6 +127,7 @@ export default function App() {
   const [conversationThreadId, setConversationThreadId] = useState<string | undefined>(undefined);
   const [conversationSubject, setConversationSubject] = useState<string | undefined>(undefined);
   const [lastMessageIdHeader, setLastMessageIdHeader] = useState<string | undefined>(undefined);
+  const [expandedTrails, setExpandedTrails] = useState<Record<string, boolean>>({});
 
   // Fetch leads and modules on mount
   useEffect(() => {
@@ -1014,35 +1066,79 @@ export default function App() {
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '420px', overflowY: 'auto', padding: '14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid var(--line)' }}>
-                    {conversation.map((msg, i) => (
-                      <div 
-                        key={msg.id || i}
-                        style={{
-                          alignSelf: msg.isFromMe ? 'flex-end' : 'flex-start',
-                          maxWidth: '85%',
-                          background: msg.isFromMe ? 'var(--accent-soft)' : '#fff',
-                          border: msg.isFromMe ? '1px solid rgba(15, 118, 110, 0.25)' : '1px solid var(--line)',
-                          borderRadius: msg.isFromMe ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
-                          padding: '12px 14px',
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '14px', fontSize: '11px', color: 'var(--muted)', marginBottom: '6px' }}>
-                          <span style={{ fontWeight: 700, color: msg.isFromMe ? 'var(--accent)' : 'var(--ink)' }}>
-                            {msg.isFromMe ? 'You (Sent)' : `${selectedLead.owner_details?.name || selectedLead.business_name} (Reply)`}
-                          </span>
-                          <span style={{ fontSize: '10.5px' }}>{msg.date}</span>
-                        </div>
-                        {msg.subject && (
-                          <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink)', marginBottom: '4px' }}>
-                            {msg.subject}
+                    {conversation.map((msg, i) => {
+                      const msgKey = msg.id || String(i);
+                      const { cleanBody, trail: fallbackTrail } = stripMessageTrail(msg.body || '');
+                      const trail = msg.trail || fallbackTrail;
+                      const isExpanded = !!expandedTrails[msgKey];
+
+                      return (
+                        <div 
+                          key={msgKey}
+                          style={{
+                            alignSelf: msg.isFromMe ? 'flex-end' : 'flex-start',
+                            maxWidth: '85%',
+                            background: msg.isFromMe ? 'var(--accent-soft)' : '#fff',
+                            border: msg.isFromMe ? '1px solid rgba(15, 118, 110, 0.25)' : '1px solid var(--line)',
+                            borderRadius: msg.isFromMe ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
+                            padding: '12px 14px',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '14px', fontSize: '11px', color: 'var(--muted)', marginBottom: '6px' }}>
+                            <span style={{ fontWeight: 700, color: msg.isFromMe ? 'var(--accent)' : 'var(--ink)' }}>
+                              {msg.isFromMe ? 'You (Sent)' : `${selectedLead.owner_details?.name || selectedLead.business_name} (Reply)`}
+                            </span>
+                            <span style={{ fontSize: '10.5px' }}>{msg.date}</span>
                           </div>
-                        )}
-                        <div style={{ fontSize: '13px', lineHeight: '1.5', whiteSpace: 'pre-wrap', color: 'var(--ink)' }}>
-                          {msg.body}
+                          {msg.subject && (
+                            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink)', marginBottom: '4px' }}>
+                              {msg.subject}
+                            </div>
+                          )}
+                          <div style={{ fontSize: '13px', lineHeight: '1.5', whiteSpace: 'pre-wrap', color: 'var(--ink)' }}>
+                            {cleanBody}
+                          </div>
+                          {trail && (
+                            <div style={{ marginTop: '8px', borderTop: '1px dashed var(--line)', paddingTop: '6px' }}>
+                              <button
+                                onClick={() => setExpandedTrails(prev => ({ ...prev, [msgKey]: !prev[msgKey] }))}
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  color: 'var(--muted)',
+                                  fontSize: '11px',
+                                  cursor: 'pointer',
+                                  padding: '2px 4px',
+                                  borderRadius: '4px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                                title="Toggle previous message trail"
+                              >
+                                {isExpanded ? '▲ Hide quoted trail' : '··· Show quoted trail'}
+                              </button>
+                              {isExpanded && (
+                                <div style={{
+                                  marginTop: '6px',
+                                  padding: '8px 10px',
+                                  background: 'rgba(0,0,0,0.03)',
+                                  borderLeft: '2px solid var(--muted)',
+                                  fontSize: '11.5px',
+                                  color: 'var(--muted)',
+                                  whiteSpace: 'pre-wrap',
+                                  maxHeight: '180px',
+                                  overflowY: 'auto'
+                                }}>
+                                  {trail}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 

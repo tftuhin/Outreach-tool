@@ -43,6 +43,62 @@ function extractBody(payload: any): string {
   return '';
 }
 
+// Helper to isolate and hide previous message trail (quoted text, On ... wrote, etc.)
+function stripMessageTrail(text: string): { cleanBody: string; trail?: string } {
+  if (!text) return { cleanBody: '' };
+
+  const normalized = text.replace(/—/g, '-');
+
+  // Common email reply headers (On ... wrote:, Original Message, etc.)
+  const headerPatterns = [
+    /\r?\n\s*On\s+[\s\S]{1,300}?wrote:\s*(\r?\n|$)/i,
+    /\r?\n\s*-+\s*Original Message\s*-+/i,
+    /\r?\n\s*From:\s*[^\n]+\r?\n\s*(?:Sent|Date):\s*[^\n]+\r?\n\s*To:\s*[^\n]+/i,
+    /\r?\n_{15,}\r?\n/,
+    /\r?\n\s*-+\s*Forwarded message\s*-+/i,
+    /\r?\n\s*Begin forwarded message:\s*/i
+  ];
+
+  for (const pattern of headerPatterns) {
+    const match = pattern.exec(normalized);
+    if (match && match.index !== undefined) {
+      const before = normalized.substring(0, match.index).trim();
+      const after = normalized.substring(match.index).trim();
+      if (before.length > 0) {
+        return { cleanBody: before, trail: after };
+      }
+    }
+  }
+
+  // Handle case where text has quote blocks (lines starting with '>')
+  const lines = normalized.split(/\r?\n/);
+  const firstQuoteIdx = lines.findIndex(l => l.trim().startsWith('>'));
+  if (firstQuoteIdx > 0) {
+    const before = lines.slice(0, firstQuoteIdx).join('\n').trim();
+    const after = lines.slice(firstQuoteIdx).join('\n').trim();
+    if (before.length > 0) {
+      return { cleanBody: before, trail: after };
+    }
+  } else if (firstQuoteIdx === 0) {
+    // Reply was placed after the quote
+    const nonQuoteLines: string[] = [];
+    const quoteLines: string[] = [];
+    for (const line of lines) {
+      if (line.trim().startsWith('>') || /^\s*On\s+[\s\S]+?wrote:\s*$/i.test(line)) {
+        quoteLines.push(line);
+      } else {
+        nonQuoteLines.push(line);
+      }
+    }
+    const clean = nonQuoteLines.join('\n').trim();
+    if (clean.length > 0) {
+      return { cleanBody: clean, trail: quoteLines.join('\n').trim() };
+    }
+  }
+
+  return { cleanBody: normalized.trim() };
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const email = searchParams.get('email');
@@ -103,7 +159,8 @@ export async function GET(request: Request) {
           const date = headers.find(h => h.name?.toLowerCase() === 'date')?.value || '';
           const messageIdHeader = headers.find(h => h.name?.toLowerCase() === 'message-id')?.value || '';
 
-          const body = extractBody(msg.data.payload) || msg.data.snippet || '';
+          const rawBody = extractBody(msg.data.payload) || msg.data.snippet || '';
+          const { cleanBody, trail } = stripMessageTrail(rawBody);
           const myEmail = (authData.email || '').toLowerCase();
           const isFromMe = from.toLowerCase().includes(myEmail);
 
@@ -113,10 +170,11 @@ export async function GET(request: Request) {
             messageIdHeader,
             from,
             to,
-            subject,
+            subject: (subject || '').replace(/—/g, '-'),
             date,
             timestamp: parseInt(msg.data.internalDate || '0', 10),
-            body,
+            body: cleanBody,
+            trail: trail || null,
             snippet: msg.data.snippet || '',
             isFromMe
           };
