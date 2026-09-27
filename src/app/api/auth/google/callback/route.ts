@@ -28,6 +28,12 @@ export async function GET(request: Request) {
     
     await client.connect();
     await client.query(`
+      CREATE TABLE IF NOT EXISTS settings (
+        key VARCHAR(255) PRIMARY KEY,
+        value TEXT
+      );
+    `);
+    await client.query(`
       INSERT INTO settings (key, value) 
       VALUES ('google_auth', $1)
       ON CONFLICT (key) DO UPDATE SET value = $1

@@ -9,6 +9,12 @@ export async function GET() {
     });
     
     await client.connect();
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS settings (
+        key VARCHAR(255) PRIMARY KEY,
+        value TEXT
+      );
+    `);
     const result = await client.query("SELECT value FROM settings WHERE key = 'google_auth'");
     await client.end();
 
