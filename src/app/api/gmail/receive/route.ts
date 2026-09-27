@@ -33,6 +33,7 @@ export async function POST(request: Request) {
     const outreachedLeads = leadsRes.rows;
     
     let updatedCount = 0;
+    const updatedLeadIds: string[] = [];
 
     // Check inbox for replies from any of these emails
     for (const lead of outreachedLeads) {
@@ -56,11 +57,12 @@ export async function POST(request: Request) {
       if (hasReply) {
         await client.query("UPDATE leads SET status = 'responded' WHERE id = $1", [lead.id]);
         updatedCount++;
+        updatedLeadIds.push(lead.id);
       }
     }
     
     await client.end();
-    return NextResponse.json({ success: true, updatedCount });
+    return NextResponse.json({ success: true, updatedCount, updatedLeadIds });
   } catch (err) {
     console.error('Receive check error', err);
     return NextResponse.json({ error: 'Failed to check inbox' }, { status: 500 });

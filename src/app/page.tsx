@@ -65,6 +65,18 @@ export default function App() {
     onAction?: () => void;
   } | null>(null);
 
+  // Responded tab red dot notification
+  const [hasNewResponses, setHasNewResponses] = useState(false);
+
+  // Conversation thread state
+  const [conversation, setConversation] = useState<any[]>([]);
+  const [loadingConversation, setLoadingConversation] = useState(false);
+  const [replyText, setReplyText] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
+  const [conversationThreadId, setConversationThreadId] = useState<string | undefined>(undefined);
+  const [conversationSubject, setConversationSubject] = useState<string | undefined>(undefined);
+  const [lastMessageIdHeader, setLastMessageIdHeader] = useState<string | undefined>(undefined);
+
   // Fetch leads and modules on mount
   useEffect(() => {
     fetch('/api/leads')
@@ -96,6 +108,101 @@ export default function App() {
       })
       .catch(console.error);
   }, []);
+
+  // Check localStorage for unseen responses once leads load
+  useEffect(() => {
+    if (leads.length === 0) return;
+    const currentResponded = leads.filter((l: any) => l.status === 'responded').length;
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('last_seen_responded_count');
+      if (stored !== null) {
+        if (currentResponded > parseInt(stored, 10)) {
+          setHasNewResponses(true);
+        }
+      } else if (currentResponded > 0) {
+        setHasNewResponses(true);
+      }
+    }
+  }, [leads]);
+
+  // Automatic background polling for replies (every 45s)
+  useEffect(() => {
+    if (!gmailConnected) return;
+
+    const pollRepliesSilently = async () => {
+      try {
+        const res = await fetch('/api/gmail/receive', { method: 'POST' });
+        const data = await res.json();
+        if (data.success && data.updatedCount > 0) {
+          const leadsRes = await fetch('/api/leads');
+          const newLeads = await leadsRes.json();
+          setLeads(newLeads);
+          setHasNewResponses(true);
+
+          // If current selected lead was one of the replied leads, reload its conversation
+          if (selectedLeadId && data.updatedLeadIds?.includes(selectedLeadId)) {
+            const currentLead = newLeads.find((l: any) => l.lead_id === selectedLeadId);
+            if (currentLead?.contact_info?.email) {
+              fetch(`/api/gmail/conversation?email=${encodeURIComponent(currentLead.contact_info.email)}`)
+                .then(r => r.json())
+                .then(d => {
+                  setConversation(d.messages || []);
+                  setConversationThreadId(d.threadId);
+                  setConversationSubject(d.lastSubject);
+                  setLastMessageIdHeader(d.lastMessageIdHeader);
+                })
+                .catch(console.error);
+            }
+          }
+        }
+      } catch (e) {
+        // Silent failure in background
+      }
+    };
+
+    const initialTimer = setTimeout(pollRepliesSilently, 5000);
+    const interval = setInterval(pollRepliesSilently, 45000);
+
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(interval);
+    };
+  }, [gmailConnected, selectedLeadId]);
+
+  // Fetch conversation when selected lead changes
+  useEffect(() => {
+    if (!selectedLead?.contact_info?.email || !gmailConnected) {
+      setConversation([]);
+      setConversationThreadId(undefined);
+      setConversationSubject(undefined);
+      setLastMessageIdHeader(undefined);
+      return;
+    }
+
+    let isMounted = true;
+    setLoadingConversation(true);
+    setReplyText("");
+
+    fetch(`/api/gmail/conversation?email=${encodeURIComponent(selectedLead.contact_info.email)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (isMounted) {
+          setConversation(data.messages || []);
+          setConversationThreadId(data.threadId);
+          setConversationSubject(data.lastSubject);
+          setLastMessageIdHeader(data.lastMessageIdHeader);
+          setLoadingConversation(false);
+        }
+      })
+      .catch(err => {
+        if (isMounted) {
+          console.error("Failed to load conversation", err);
+          setLoadingConversation(false);
+        }
+      });
+
+    return () => { isMounted = false; };
+  }, [selectedLead?.lead_id, selectedLead?.contact_info?.email, gmailConnected]);
 
   const handleAddModule = async () => {
     if (!newModuleName.trim()) return;
@@ -295,6 +402,62 @@ export default function App() {
     handleReviewAndSend(lead);
   };
 
+  const handleSendReply = async () => {
+    if (!replyText.trim() || !selectedLead?.contact_info?.email) return;
+    setSendingReply(true);
+
+    const subject = conversationSubject 
+      ? (conversationSubject.toLowerCase().startsWith('re:') ? conversationSubject : `Re: ${conversationSubject}`)
+      : (selectedLead.draft_message?.subject || 'Re: Outreach');
+
+    try {
+      const res = await fetch('/api/gmail/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadId: selectedLead.lead_id,
+          to: selectedLead.contact_info.email,
+          subject,
+          body: replyText.trim(),
+          threadId: conversationThreadId,
+          inReplyTo: lastMessageIdHeader
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        // Optimistically append new message to conversation
+        const newMsg = {
+          id: data.messageId || String(Date.now()),
+          date: 'Just now',
+          from: gmailEmail || 'Me',
+          to: selectedLead.contact_info.email,
+          subject,
+          body: replyText.trim(),
+          isFromMe: true
+        };
+        setConversation(prev => [...prev, newMsg]);
+        setReplyText("");
+      } else {
+        setFeedbackModal({
+          isOpen: true,
+          type: 'error',
+          title: 'Failed to Send Reply',
+          message: data.error || 'Failed to dispatch reply through Gmail.'
+        });
+      }
+    } catch (err) {
+      setFeedbackModal({
+        isOpen: true,
+        type: 'error',
+        title: 'Error Sending Reply',
+        message: 'An error occurred while sending your reply.'
+      });
+    } finally {
+      setSendingReply(false);
+    }
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     alert("Copied to clipboard!");
@@ -458,9 +621,34 @@ export default function App() {
           </button>
           <button 
             className={`tab-btn ${activeTab === "responded" ? "active" : ""}`}
-            onClick={() => { setActiveTab("responded"); setSelectedLeadId(null); setIsEditing(false); }}
+            style={{ position: 'relative' }}
+            onClick={() => { 
+              setActiveTab("responded"); 
+              setSelectedLeadId(null); 
+              setIsEditing(false); 
+              setHasNewResponses(false);
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('last_seen_responded_count', String(respondedCount));
+              }
+            }}
           >
             Responded ({respondedCount})
+            {hasNewResponses && (
+              <span 
+                style={{
+                  display: 'inline-block',
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  backgroundColor: '#ef4444',
+                  marginLeft: '6px',
+                  verticalAlign: 'middle',
+                  boxShadow: '0 0 0 2px #fff, 0 0 6px #ef4444',
+                  animation: 'pulse 1.5s infinite'
+                }} 
+                title="New response received!"
+              />
+            )}
           </button>
         </div>
 
@@ -715,6 +903,122 @@ export default function App() {
                   <strong>Snapshot:</strong> {isEditing ? <input style={{width:'100%', marginBottom: '4px'}} value={selectedLead.marketing_angles.snapshot} onChange={e => handleInputChange('marketing_angles.snapshot', e.target.value)} /> : selectedLead.marketing_angles.snapshot}<br/>
                   <strong>Angle:</strong> {isEditing ? <input style={{width:'100%'}} value={selectedLead.marketing_angles.automation_angle} onChange={e => handleInputChange('marketing_angles.automation_angle', e.target.value)} /> : selectedLead.marketing_angles.automation_angle}
                 </div>
+              </div>
+
+              {/* Conversation History & Interactive Reply Section */}
+              <div className="sec">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>💬 Conversation History</span>
+                    {conversation.length > 0 && (
+                      <span style={{ fontSize: '11px', background: 'var(--accent-soft)', color: 'var(--accent)', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
+                        {conversation.length} message{conversation.length > 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </h3>
+                  {gmailConnected && selectedLead.contact_info?.email && (
+                    <button 
+                      className="btn" 
+                      style={{ padding: '4px 8px', fontSize: '11px' }}
+                      disabled={loadingConversation}
+                      onClick={() => {
+                        setLoadingConversation(true);
+                        fetch(`/api/gmail/conversation?email=${encodeURIComponent(selectedLead.contact_info.email)}`)
+                          .then(r => r.json())
+                          .then(d => {
+                            setConversation(d.messages || []);
+                            setConversationThreadId(d.threadId);
+                            setConversationSubject(d.lastSubject);
+                            setLastMessageIdHeader(d.lastMessageIdHeader);
+                            setLoadingConversation(false);
+                          })
+                          .catch(() => setLoadingConversation(false));
+                      }}
+                      title="Refresh Gmail messages"
+                    >
+                      {loadingConversation ? 'Loading...' : '↻ Refresh'}
+                    </button>
+                  )}
+                </div>
+
+                {!gmailConnected ? (
+                  <div style={{ padding: '16px', textAlign: 'center', color: 'var(--muted)', fontSize: '13px', background: '#f8fafc', borderRadius: '8px', border: '1px solid var(--line)' }}>
+                    Connect your Gmail account in the top bar to view and continue email conversations.
+                  </div>
+                ) : loadingConversation ? (
+                  <div style={{ padding: '24px', textAlign: 'center', color: 'var(--muted)', fontSize: '13px', background: '#f8fafc', borderRadius: '8px', border: '1px solid var(--line)' }}>
+                    Checking Gmail for conversation history...
+                  </div>
+                ) : conversation.length === 0 ? (
+                  <div style={{ padding: '18px', textAlign: 'center', color: 'var(--muted)', fontSize: '13px', background: '#f8fafc', borderRadius: '8px', border: '1px solid var(--line)' }}>
+                    No prior email messages found in Gmail for <strong>{selectedLead.contact_info?.email || 'this lead'}</strong>.
+                    <div style={{ marginTop: '6px', fontSize: '12px' }}>Send your initial outreach email below to start the conversation!</div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '420px', overflowY: 'auto', padding: '14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid var(--line)' }}>
+                    {conversation.map((msg, i) => (
+                      <div 
+                        key={msg.id || i}
+                        style={{
+                          alignSelf: msg.isFromMe ? 'flex-end' : 'flex-start',
+                          maxWidth: '85%',
+                          background: msg.isFromMe ? 'var(--accent-soft)' : '#fff',
+                          border: msg.isFromMe ? '1px solid rgba(15, 118, 110, 0.25)' : '1px solid var(--line)',
+                          borderRadius: msg.isFromMe ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
+                          padding: '12px 14px',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '14px', fontSize: '11px', color: 'var(--muted)', marginBottom: '6px' }}>
+                          <span style={{ fontWeight: 700, color: msg.isFromMe ? 'var(--accent)' : 'var(--ink)' }}>
+                            {msg.isFromMe ? 'You (Sent)' : `${selectedLead.owner_details?.name || selectedLead.business_name} (Reply)`}
+                          </span>
+                          <span style={{ fontSize: '10.5px' }}>{msg.date}</span>
+                        </div>
+                        {msg.subject && (
+                          <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink)', marginBottom: '4px' }}>
+                            {msg.subject}
+                          </div>
+                        )}
+                        <div style={{ fontSize: '13px', lineHeight: '1.5', whiteSpace: 'pre-wrap', color: 'var(--ink)' }}>
+                          {msg.body}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Continue Conversation Composer */}
+                {gmailConnected && selectedLead.contact_info?.email && (
+                  <div style={{ marginTop: '16px', borderTop: '1px solid var(--line)', paddingTop: '14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: 'var(--ink)' }}>
+                        Continue Conversation
+                      </h4>
+                      {conversationSubject && (
+                        <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                          Subject: {conversationSubject.startsWith('Re:') ? conversationSubject : `Re: ${conversationSubject}`}
+                        </span>
+                      )}
+                    </div>
+                    <textarea
+                      style={{ width: '100%', minHeight: '90px', padding: '10px 12px', borderRadius: '6px', border: '1px solid var(--line)', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical', background: '#fff' }}
+                      placeholder={`Write a reply to ${selectedLead.contact_info?.email}...`}
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+                      <button
+                        className="btn primary"
+                        onClick={handleSendReply}
+                        disabled={sendingReply || !replyText.trim()}
+                        style={{ padding: '6px 16px', fontSize: '13px' }}
+                      >
+                        {sendingReply ? 'Sending Reply...' : '📤 Send Reply'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="sec">

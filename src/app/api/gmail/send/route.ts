@@ -3,18 +3,25 @@ import { getGoogleAuth } from '@/lib/googleAuth';
 import { Client } from 'pg';
 import { google } from 'googleapis';
 
-function createMimeMessage(to: string, subject: string, body: string): string {
-  const message = [
+function createMimeMessage(to: string, subject: string, body: string, inReplyTo?: string, references?: string): string {
+  const lines = [
     `To: ${to}`,
     `Subject: ${subject}`,
     'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=utf-8',
-    '',
-    body
-  ].join('\r\n');
+    'Content-Type: text/plain; charset=utf-8'
+  ];
+
+  if (inReplyTo) {
+    lines.push(`In-Reply-To: ${inReplyTo}`);
+  }
+  if (references) {
+    lines.push(`References: ${references}`);
+  }
+
+  lines.push('', body);
 
   // Base64url encode
-  return Buffer.from(message)
+  return Buffer.from(lines.join('\r\n'))
     .toString('base64')
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
@@ -23,7 +30,7 @@ function createMimeMessage(to: string, subject: string, body: string): string {
 
 export async function POST(request: Request) {
   try {
-    const { leadId, to, subject, body } = await request.json();
+    const { leadId, to, subject, body, threadId, inReplyTo } = await request.json();
 
     if (!to || !subject || !body) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -51,16 +58,21 @@ export async function POST(request: Request) {
 
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
     
-    const raw = createMimeMessage(to, subject, body);
+    const raw = createMimeMessage(to, subject, body, inReplyTo, inReplyTo);
     
+    const requestBody: any = { raw };
+    if (threadId) {
+      requestBody.threadId = threadId;
+    }
+
     const res = await gmail.users.messages.send({
       userId: 'me',
-      requestBody: { raw }
+      requestBody
     });
 
     if (res.data.id && leadId) {
-      // Mark as outreached in DB
-      await client.query("UPDATE leads SET status = 'outreached' WHERE id = $1", [leadId]);
+      // If pending, mark as outreached in DB
+      await client.query("UPDATE leads SET status = CASE WHEN status = 'pending' THEN 'outreached' ELSE status END WHERE id = $1", [leadId]);
     }
     
     await client.end();
