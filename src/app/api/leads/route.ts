@@ -12,7 +12,7 @@ export async function GET() {
     const result = await client.query("SELECT * FROM leads ORDER BY CAST(REPLACE(id, 'lead_', '') AS INTEGER) ASC");
     
     // Map db columns to frontend nested structure
-    const mappedLeads = result.rows.map(row => ({
+    const mappedLeads = result.rows.map((row: any) => ({
       lead_id: row.id,
       module: row.module || 'Dentist',
       tier: row.tier,

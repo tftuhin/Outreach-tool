@@ -7,9 +7,9 @@ import Papa from "papaparse";
 const mockLeads: any[] = [];
 
 const getFirstUrl = (text: string | undefined | null) => {
-  if (!text) return null;
+  if (!text) return undefined;
   const match = text.match(/(https?:\/\/[^\s)]+)/);
-  return match ? match[1] : null;
+  return match ? match[1] : undefined;
 };
 
 const extractPhone = (str: string | undefined | null) => {
