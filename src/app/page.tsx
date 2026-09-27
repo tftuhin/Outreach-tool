@@ -226,6 +226,17 @@ export default function App() {
     }
   };
 
+  const handleReviewAndSend = async (lead: any) => {
+    if (!lead) return;
+    if (!gmailConnected) {
+      if (confirm("Gmail is not connected yet. Would you like to connect your Gmail account now?")) {
+        window.location.href = '/api/auth/google';
+      }
+      return;
+    }
+    await sendGmail(lead);
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     alert("Copied to clipboard!");
@@ -638,9 +649,19 @@ export default function App() {
               <div className="sec">
                 <h3>Email Outreach</h3>
                 <div className="mail">
-                  <div className="bar">
+                  <div className="bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
                     <div className="to"><strong>To:</strong> {selectedLead.contact_info?.email || 'No email provided'}</div>
-                    <button className="btn" onClick={() => copyToClipboard(selectedLead.draft_message?.body || '')}>Copy Body</button>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button className="btn" onClick={() => copyToClipboard(selectedLead.draft_message?.body || '')}>Copy Body</button>
+                      <button 
+                        className="btn primary" 
+                        onClick={() => handleReviewAndSend(selectedLead)} 
+                        disabled={sendingEmail}
+                        style={{ padding: '6px 12px', fontSize: '12px' }}
+                      >
+                        {sendingEmail ? 'Sending...' : '📤 Send via Gmail'}
+                      </button>
+                    </div>
                   </div>
                   <div className="subj">
                     <span className="lbl">Subject:</span>
@@ -669,9 +690,13 @@ export default function App() {
                 <>
                   <button className="btn" onClick={() => setIsEditing(true)}>Edit Details</button>
                   <div style={{flex: 1}}></div>
-                  {activeTab === "pending" && (
-                    <button className="btn primary" onClick={() => {}}>
-                      Review & send with Gmail
+                  {selectedLead && (
+                    <button 
+                      className="btn primary" 
+                      onClick={() => handleReviewAndSend(selectedLead)}
+                      disabled={sendingEmail}
+                    >
+                      {sendingEmail ? 'Sending...' : '📤 Review & send with Gmail'}
                     </button>
                   )}
                   {selectedLead.status !== 'outreached' && (
