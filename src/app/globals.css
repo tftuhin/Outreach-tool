@@ -20,14 +20,22 @@
   --shadow: 0 1px 2px rgba(16,24,40,.06), 0 4px 16px rgba(16,24,40,.06);
 }
 
-body {
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
   margin: 0;
   padding: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
   background-color: var(--bg);
   color: var(--ink);
   font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
-  min-height: 100vh;
   display: flex;
   flex-direction: column;
 }
@@ -49,7 +57,7 @@ a:hover {
 .app-container {
   display: grid;
   grid-template-columns: 340px 1fr;
-  height: 100vh;
+  height: 100%;
   overflow: hidden;
   max-width: 1500px;
   margin: 0 auto;
@@ -63,6 +71,7 @@ a:hover {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
   padding-top: 12px;
 }
 
@@ -79,23 +88,25 @@ a:hover {
 
 .tabs-container {
   display: flex;
-  padding: 8px 16px;
-  gap: 6px;
+  padding: 8px 12px;
+  gap: 4px;
   border-bottom: 1px solid var(--line);
-  flex-wrap: wrap;
+  justify-content: space-between;
 }
 
 .tab-btn {
   border: 1px solid var(--line);
   background: #fff;
   border-radius: 999px;
-  padding: 6px 12px;
-  font-size: 12.5px;
+  padding: 6px 4px;
+  font-size: 11.5px;
   cursor: pointer;
   color: var(--muted);
   font-family: inherit;
   font-weight: 500;
   transition: all 0.2s;
+  flex: 1;
+  text-align: center;
 }
 
 .tab-btn:hover {
@@ -111,6 +122,7 @@ a:hover {
 
 .lead-list {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 12px;
   display: flex;
@@ -191,12 +203,14 @@ a:hover {
 
 /* Main Content */
 .main-content {
-  flex: 1;
   display: flex;
   flex-direction: column;
   background: var(--bg);
+  height: 100%;
   min-width: 0;
+  min-height: 0;
   padding: 12px 24px;
+  overflow: hidden;
 }
 
 .topbar {
@@ -243,6 +257,8 @@ a:hover {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  flex: 1;
+  min-height: 0;
 }
 
 .detail-header {
@@ -267,6 +283,7 @@ a:hover {
   padding: 24px;
   overflow-y: auto;
   flex: 1;
+  min-height: 0;
 }
 
 .empty-state {
@@ -289,38 +306,78 @@ a:hover {
 .sec {
   margin-top: 0;
   margin-bottom: 24px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
 }
+
 .sec h3 {
-  margin: 0 0 10px;
-  font-size: 13px;
-  letter-spacing: .08em;
+  margin: 0 0 20px;
+  font-size: 14px;
+  letter-spacing: .05em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--brand);
+  font-weight: 700;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 10px;
 }
 
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 12px;
+  gap: 16px;
 }
 
 .kv {
-  background: #f8fafc;
+  background: #ffffff;
   border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 12px 14px;
+  border-radius: 8px;
+  padding: 16px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
 }
+
+.kv:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+  border-color: #d1d5db;
+}
+
 .kv .k {
   font-size: 11.5px;
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: .06em;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+  font-weight: 700;
 }
+
 .kv .v {
   font-size: 14px;
   word-break: break-word;
-  color: var(--ink);
+  color: #111;
+  line-height: 1.5;
+}
+
+.comp-list {
+  margin: 6px 0 10px;
+  padding-left: 20px;
+  color: #333;
+}
+.comp-list li {
+  margin-bottom: 4px;
+  list-style-type: square;
+}
+
+.note-box {
+  background: #f8fafc;
+  border-left: 3px solid var(--brand);
+  padding: 10px 14px;
+  margin-top: 6px;
+  border-radius: 0 4px 4px 0;
+  font-size: 13px;
+  color: #444;
 }
 
 .flag {
@@ -397,4 +454,32 @@ a:hover {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+  .app-container {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    height: 100%;
+    overflow-y: auto;
+  }
+  .sidebar {
+    height: auto;
+    max-height: 40vh;
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+  }
+  .sidebar-header {
+    padding: 16px;
+  }
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .actions-row {
+    flex-direction: column;
+  }
+  .actions-row button {
+    width: 100%;
+  }
 }

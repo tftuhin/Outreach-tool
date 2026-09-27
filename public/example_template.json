@@ -1,0 +1,25 @@
+[
+  {
+    "business_name": "Example Corp",
+    "tier": "Tier 1",
+    "area": "Downtown",
+    "owner_name": "John Doe",
+    "license_credentials": "CPA",
+    "graduation_experience": "10 Years",
+    "email": "john@example.com",
+    "phone_whatsapp": "+1234567890",
+    "website": "https://example.com",
+    "address": "123 Main St",
+    "facebook": "https://facebook.com/example",
+    "linkedin": "https://linkedin.com/in/example",
+    "google_maps": "https://maps.google.com/...",
+    "business_size": "10-50 employees",
+    "hours": "9AM - 5PM",
+    "founder_age_est": "45",
+    "opened_since": "2010",
+    "status": "pending",
+    "whatsapp_message": "Hi John, I saw your business...",
+    "email_subject": "Partnership Opportunity",
+    "email_body": "Hi John,\n\nI am reaching out to discuss..."
+  }
+]
