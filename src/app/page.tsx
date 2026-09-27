@@ -169,6 +169,8 @@ export default function App() {
     };
   }, [gmailConnected, selectedLeadId]);
 
+  const selectedLead = leads.find(l => l.lead_id === selectedLeadId);
+
   // Fetch conversation when selected lead changes
   useEffect(() => {
     if (!selectedLead?.contact_info?.email || !gmailConnected) {
@@ -239,7 +241,6 @@ export default function App() {
     }
   };
 
-  const selectedLead = leads.find(l => l.lead_id === selectedLeadId);
   
   const moduleLeads = leads.filter(lead => (lead.module || 'Dentist') === activeModule);
   const pendingCount = moduleLeads.filter(l => l.status === 'pending').length;
