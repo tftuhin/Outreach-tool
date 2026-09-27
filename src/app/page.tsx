@@ -53,6 +53,18 @@ export default function App() {
   const [checkingReplies, setCheckingReplies] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
 
+  // Email & Confirmation modals state
+  const [isSendConfirmOpen, setIsSendConfirmOpen] = useState(false);
+  const [sendTargetLead, setSendTargetLead] = useState<any>(null);
+  const [feedbackModal, setFeedbackModal] = useState<{
+    isOpen: boolean;
+    type: 'success' | 'error' | 'warning';
+    title: string;
+    message: string;
+    actionLabel?: string;
+    onAction?: () => void;
+  } | null>(null);
+
   // Fetch leads and modules on mount
   useEffect(() => {
     fetch('/api/leads')
@@ -174,28 +186,39 @@ export default function App() {
       const res = await fetch('/api/gmail/receive', { method: 'POST' });
       const data = await res.json();
       if (data.success) {
-        alert(`Checked inbox. Found replies for ${data.updatedCount} leads!`);
+        setFeedbackModal({
+          isOpen: true,
+          type: 'success',
+          title: 'Inbox Check Complete',
+          message: data.updatedCount > 0 
+            ? `Found replies for ${data.updatedCount} lead${data.updatedCount > 1 ? 's' : ''}! Their status has been updated to Responded.`
+            : 'Checked inbox. No new replies found at this time.'
+        });
         if (data.updatedCount > 0) {
-          window.location.reload();
+          fetch('/api/leads').then(res => res.json()).then(setLeads);
         }
       } else {
-        alert(data.error || 'Failed to check replies');
+        setFeedbackModal({
+          isOpen: true,
+          type: 'error',
+          title: 'Inbox Check Failed',
+          message: data.error || 'Failed to check replies from Gmail.'
+        });
       }
     } catch (err) {
-      alert('Error checking replies');
+      setFeedbackModal({
+        isOpen: true,
+        type: 'error',
+        title: 'Inbox Check Error',
+        message: 'An error occurred while checking your Gmail inbox.'
+      });
     } finally {
       setCheckingReplies(false);
     }
   };
 
-  const sendGmail = async (lead: any) => {
-    if (!lead.draft_message?.subject || !lead.draft_message?.body || !lead.contact_info?.email) {
-      alert("Missing email, subject, or body!");
-      return;
-    }
-    
-    if (!confirm(`Send email to ${lead.contact_info.email}?`)) return;
-    
+  const executeSendMail = async (lead: any) => {
+    if (!lead) return;
     setSendingEmail(true);
     try {
       const res = await fetch('/api/gmail/send', {
@@ -203,38 +226,73 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           leadId: lead.lead_id,
-          to: lead.contact_info.email,
-          subject: lead.draft_message.subject,
-          body: lead.draft_message.body
+          to: lead.contact_info?.email,
+          subject: lead.draft_message?.subject,
+          body: lead.draft_message?.body
         })
       });
       const data = await res.json();
+      setIsSendConfirmOpen(false);
+
       if (data.success) {
-        alert("Email sent successfully!");
         setLeads(leads.map(l => l.lead_id === lead.lead_id ? { ...l, status: 'outreached' } : l));
-        if (selectedLeadId === lead.lead_id) {
-            setSelectedLeadId(null);
-            setTimeout(() => setSelectedLeadId(lead.lead_id), 10);
-        }
+        setFeedbackModal({
+          isOpen: true,
+          type: 'success',
+          title: 'Email Sent Successfully!',
+          message: `Your outreach email to ${lead.contact_info?.email} (${lead.business_name}) was successfully dispatched via Gmail. The lead status has been updated to Outreached.`
+        });
       } else {
-        alert(data.error || "Failed to send email");
+        setFeedbackModal({
+          isOpen: true,
+          type: 'error',
+          title: 'Failed to Send Email',
+          message: data.error || 'There was an issue sending your email. Please verify your Gmail connection and try again.'
+        });
       }
     } catch (err) {
-      alert("Error sending email");
+      setIsSendConfirmOpen(false);
+      setFeedbackModal({
+        isOpen: true,
+        type: 'error',
+        title: 'Network or Server Error',
+        message: 'A network error occurred while attempting to send the email. Please check your connection and try again.'
+      });
     } finally {
       setSendingEmail(false);
     }
   };
 
-  const handleReviewAndSend = async (lead: any) => {
+  const handleReviewAndSend = (lead: any) => {
     if (!lead) return;
     if (!gmailConnected) {
-      if (confirm("Gmail is not connected yet. Would you like to connect your Gmail account now?")) {
-        window.location.href = '/api/auth/google';
-      }
+      setFeedbackModal({
+        isOpen: true,
+        type: 'warning',
+        title: 'Gmail Not Connected',
+        message: 'Please connect your Gmail account in the top bar before sending outreach emails.',
+        actionLabel: 'Connect Gmail',
+        onAction: () => { window.location.href = '/api/auth/google'; }
+      });
       return;
     }
-    await sendGmail(lead);
+
+    if (!lead.draft_message?.subject || !lead.draft_message?.body || !lead.contact_info?.email) {
+      setFeedbackModal({
+        isOpen: true,
+        type: 'warning',
+        title: 'Missing Required Fields',
+        message: 'Please ensure this lead has an email address, subject line, and message body before sending.'
+      });
+      return;
+    }
+
+    setSendTargetLead(lead);
+    setIsSendConfirmOpen(true);
+  };
+
+  const sendGmail = (lead: any) => {
+    handleReviewAndSend(lead);
   };
 
   const copyToClipboard = (text: string) => {
@@ -767,6 +825,99 @@ export default function App() {
             </div>
             <div style={{display: 'flex', justifyContent: 'flex-end'}}>
               <button className="btn" onClick={() => setIsExportModalOpen(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {isSendConfirmOpen && sendTargetLead && (
+        <div style={{position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000}}>
+          <div style={{background: '#fff', padding: '24px', borderRadius: '12px', width: '460px', maxWidth: '92%', boxShadow: '0 10px 25px rgba(0,0,0,0.1)'}}>
+            <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px'}}>
+              <div style={{width: '38px', height: '38px', borderRadius: '10px', background: 'var(--accent-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)'}}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+              </div>
+              <div>
+                <h2 style={{margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--ink)'}}>Send Outreach Email</h2>
+                <div style={{fontSize: '12px', color: 'var(--muted)', marginTop: '2px'}}>From: {gmailEmail || 'Connected Gmail account'}</div>
+              </div>
+            </div>
+
+            <p style={{fontSize: '14px', color: 'var(--muted)', lineHeight: '1.5', margin: '0 0 16px 0'}}>
+              Are you sure you want to send this email to <strong>{sendTargetLead.business_name}</strong>?
+            </p>
+
+            <div style={{background: '#f8fafc', border: '1px solid var(--line)', borderRadius: '8px', padding: '12px 14px', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '8px'}}>
+              <div style={{fontSize: '13px', display: 'flex', gap: '6px'}}>
+                <span style={{color: 'var(--muted)', minWidth: '55px'}}>To:</span>
+                <span style={{color: 'var(--ink)', fontWeight: 600}}>{sendTargetLead.contact_info?.email}</span>
+              </div>
+              <div style={{fontSize: '13px', display: 'flex', gap: '6px'}}>
+                <span style={{color: 'var(--muted)', minWidth: '55px'}}>Subject:</span>
+                <span style={{color: 'var(--ink)', fontWeight: 600}}>{sendTargetLead.draft_message?.subject}</span>
+              </div>
+              <div style={{fontSize: '12px', color: 'var(--muted)', marginTop: '4px', borderTop: '1px dashed var(--line)', paddingTop: '8px', maxHeight: '130px', overflowY: 'auto', whiteSpace: 'pre-wrap', lineHeight: '1.5'}}>
+                {sendTargetLead.draft_message?.body}
+              </div>
+            </div>
+
+            <div style={{display: 'flex', justifyContent: 'flex-end', gap: '10px'}}>
+              <button className="btn" onClick={() => setIsSendConfirmOpen(false)} disabled={sendingEmail}>
+                Cancel
+              </button>
+              <button 
+                className="btn primary" 
+                onClick={() => executeSendMail(sendTargetLead)} 
+                disabled={sendingEmail}
+                style={{minWidth: '120px', justifyContent: 'center'}}
+              >
+                {sendingEmail ? 'Sending...' : '📤 Send Email'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {feedbackModal && feedbackModal.isOpen && (
+        <div style={{position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000}}>
+          <div style={{background: '#fff', padding: '24px', borderRadius: '12px', width: '420px', maxWidth: '90%', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', textAlign: 'center'}}>
+            <div style={{
+              width: '48px', 
+              height: '48px', 
+              borderRadius: '50%', 
+              background: feedbackModal.type === 'success' ? '#dcfce7' : feedbackModal.type === 'error' ? '#fee2e2' : '#fef3c7', 
+              color: feedbackModal.type === 'success' ? '#15803d' : feedbackModal.type === 'error' ? '#b91c1c' : '#b45309', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              margin: '0 auto 16px auto'
+            }}>
+              {feedbackModal.type === 'success' ? (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              ) : feedbackModal.type === 'error' ? (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+              ) : (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+              )}
+            </div>
+
+            <h2 style={{margin: '0 0 8px 0', fontSize: '18px', fontWeight: 700, color: 'var(--ink)'}}>{feedbackModal.title}</h2>
+            <p style={{fontSize: '14px', color: 'var(--muted)', lineHeight: '1.5', margin: '0 0 24px 0'}}>
+              {feedbackModal.message}
+            </p>
+
+            <div style={{display: 'flex', justifyContent: 'center', gap: '8px'}}>
+              {feedbackModal.actionLabel && feedbackModal.onAction ? (
+                <>
+                  <button className="btn" onClick={() => setFeedbackModal(null)}>Cancel</button>
+                  <button className="btn primary" onClick={() => { feedbackModal.onAction?.(); setFeedbackModal(null); }}>
+                    {feedbackModal.actionLabel}
+                  </button>
+                </>
+              ) : (
+                <button className="btn primary" style={{minWidth: '100px', justifyContent: 'center'}} onClick={() => setFeedbackModal(null)}>
+                  Close
+                </button>
+              )}
             </div>
           </div>
         </div>
