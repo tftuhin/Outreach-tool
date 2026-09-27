@@ -170,6 +170,7 @@ export default function App() {
   }, [gmailConnected, selectedLeadId]);
 
   const selectedLead = leads.find(l => l.lead_id === selectedLeadId);
+  const isConversationActive = selectedLead ? (selectedLead.status === 'responded' || conversation.length > 0) : false;
 
   // Fetch conversation when selected lead changes
   useEffect(() => {
@@ -906,7 +907,58 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Conversation History & Interactive Reply Section */}
+              <div className="sec">
+                <h3>WhatsApp Outreach</h3>
+                <div className="mail">
+                  <div className="bar">
+                    <button className="btn" onClick={() => copyToClipboard(selectedLead.draft_message?.whatsapp || '')}>Copy Message</button>
+                    <a className="btn primary" href={`https://wa.me/${selectedLead.contact_info?.phone_whatsapp?.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(selectedLead.draft_message?.whatsapp || '')}`} target="_blank" rel="noreferrer">Open WhatsApp</a>
+                  </div>
+                  <textarea 
+                    style={{minHeight: '220px'}}
+                    value={selectedLead.draft_message?.whatsapp || ''}
+                    onChange={(e) => handleInputChange('draft_message.whatsapp', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Personalized outreach email is only needed before conversation starts */}
+              {!isConversationActive && (
+                <div className="sec">
+                  <h3>Email Outreach</h3>
+                  <div className="mail">
+                    <div className="bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+                      <div className="to"><strong>To:</strong> {selectedLead.contact_info?.email || 'No email provided'}</div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button className="btn" onClick={() => copyToClipboard(selectedLead.draft_message?.body || '')}>Copy Body</button>
+                        <button 
+                          className="btn primary" 
+                          onClick={() => handleReviewAndSend(selectedLead)} 
+                          disabled={sendingEmail}
+                          style={{ padding: '6px 12px', fontSize: '12px' }}
+                        >
+                          {sendingEmail ? 'Sending...' : '📤 Send via Gmail'}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="subj">
+                      <span className="lbl">Subject:</span>
+                      <input 
+                        type="text" 
+                        value={selectedLead.draft_message?.subject || ''} 
+                        onChange={(e) => handleInputChange('draft_message.subject', e.target.value)}
+                      />
+                    </div>
+                    <textarea 
+                      style={{minHeight: '350px'}}
+                      value={selectedLead.draft_message?.body || ''} 
+                      onChange={(e) => handleInputChange('draft_message.body', e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Conversation History & Interactive Reply Section - at the bottom of the page */}
               <div className="sec">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                   <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -953,7 +1005,7 @@ export default function App() {
                 ) : conversation.length === 0 ? (
                   <div style={{ padding: '18px', textAlign: 'center', color: 'var(--muted)', fontSize: '13px', background: '#f8fafc', borderRadius: '8px', border: '1px solid var(--line)' }}>
                     No prior email messages found in Gmail for <strong>{selectedLead.contact_info?.email || 'this lead'}</strong>.
-                    <div style={{ marginTop: '6px', fontSize: '12px' }}>Send your initial outreach email below to start the conversation!</div>
+                    <div style={{ marginTop: '6px', fontSize: '12px' }}>Send your initial outreach email above to start the conversation!</div>
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '420px', overflowY: 'auto', padding: '14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid var(--line)' }}>
@@ -1021,54 +1073,6 @@ export default function App() {
                   </div>
                 )}
               </div>
-
-              <div className="sec">
-                <h3>WhatsApp Outreach</h3>
-                <div className="mail">
-                  <div className="bar">
-                    <button className="btn" onClick={() => copyToClipboard(selectedLead.draft_message?.whatsapp || '')}>Copy Message</button>
-                    <a className="btn primary" href={`https://wa.me/${selectedLead.contact_info?.phone_whatsapp?.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(selectedLead.draft_message?.whatsapp || '')}`} target="_blank" rel="noreferrer">Open WhatsApp</a>
-                  </div>
-                  <textarea 
-                    style={{minHeight: '220px'}}
-                    value={selectedLead.draft_message?.whatsapp || ''}
-                    onChange={(e) => handleInputChange('draft_message.whatsapp', e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="sec">
-                <h3>Email Outreach</h3>
-                <div className="mail">
-                  <div className="bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
-                    <div className="to"><strong>To:</strong> {selectedLead.contact_info?.email || 'No email provided'}</div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button className="btn" onClick={() => copyToClipboard(selectedLead.draft_message?.body || '')}>Copy Body</button>
-                      <button 
-                        className="btn primary" 
-                        onClick={() => handleReviewAndSend(selectedLead)} 
-                        disabled={sendingEmail}
-                        style={{ padding: '6px 12px', fontSize: '12px' }}
-                      >
-                        {sendingEmail ? 'Sending...' : '📤 Send via Gmail'}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="subj">
-                    <span className="lbl">Subject:</span>
-                    <input 
-                      type="text" 
-                      value={selectedLead.draft_message?.subject || ''} 
-                      onChange={(e) => handleInputChange('draft_message.subject', e.target.value)}
-                    />
-                  </div>
-                  <textarea 
-                    style={{minHeight: '350px'}}
-                    value={selectedLead.draft_message?.body || ''} 
-                    onChange={(e) => handleInputChange('draft_message.body', e.target.value)}
-                  />
-                </div>
-              </div>
             </div>
             
             <div className="actions-row" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
@@ -1081,7 +1085,7 @@ export default function App() {
                 <>
                   <button className="btn" onClick={() => setIsEditing(true)}>Edit Details</button>
                   <div style={{flex: 1}}></div>
-                  {selectedLead && (
+                  {!isConversationActive && selectedLead && (
                     <button 
                       className="btn primary" 
                       onClick={() => handleReviewAndSend(selectedLead)}
@@ -1090,7 +1094,7 @@ export default function App() {
                       {sendingEmail ? 'Sending...' : '📤 Review & send with Gmail'}
                     </button>
                   )}
-                  {selectedLead.status !== 'outreached' && (
+                  {selectedLead.status === 'pending' && (
                     <button className="btn primary" style={{background: '#10b981', color: '#fff', borderColor: '#10b981'}} onClick={() => markAsOutreached(selectedLead.lead_id)}>
                       ✓ Mark as Outreached
                     </button>
