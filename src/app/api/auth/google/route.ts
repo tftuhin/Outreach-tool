@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getGoogleAuth } from '@/lib/googleAuth';
 
-export async function GET(request: Request) {
+export async function GET() {
   const oauth2Client = getGoogleAuth();
   
   const scopes = [

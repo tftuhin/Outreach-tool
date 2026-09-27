@@ -3,7 +3,7 @@ import { getGoogleAuth } from '@/lib/googleAuth';
 import { Client } from 'pg';
 import { google } from 'googleapis';
 
-export async function POST(request: Request) {
+export async function POST() {
   try {
     const client = new Client({
       connectionString: process.env.DATABASE_URL,

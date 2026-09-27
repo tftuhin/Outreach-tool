@@ -10,19 +10,6 @@ export async function GET() {
   try {
     await client.connect();
 
-    // Normalize em-dashes to hyphens in database draft fields
-    await client.query(`
-      UPDATE leads 
-      SET 
-        whatsapp_message = REPLACE(whatsapp_message, '—', '-'),
-        email_subject = REPLACE(email_subject, '—', '-'),
-        email_body = REPLACE(email_body, '—', '-')
-      WHERE 
-        whatsapp_message LIKE '%—%' 
-        OR email_subject LIKE '%—%' 
-        OR email_body LIKE '%—%'
-    `);
-
     const result = await client.query("SELECT * FROM leads ORDER BY CAST(REPLACE(id, 'lead_', '') AS INTEGER) ASC");
     
     // Map db columns to frontend nested structure
@@ -75,6 +62,7 @@ export async function GET() {
     return NextResponse.json(mappedLeads);
   } catch (err) {
     console.error(err);
+    if (client) await client.end();
     return NextResponse.json({ error: 'Failed to fetch leads' }, { status: 500 });
   }
 }

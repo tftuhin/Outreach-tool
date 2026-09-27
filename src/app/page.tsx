@@ -3,9 +3,6 @@
 import { useState, useEffect } from "react";
 import Papa from "papaparse";
 
-// Mock Data matching the new generalized schema, including WhatsApp
-const mockLeads: any[] = [];
-
 const getFirstUrl = (text: string | undefined | null) => {
   if (!text) return undefined;
   const match = text.match(/(https?:\/\/[^\s)]+)/);
