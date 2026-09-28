@@ -1251,7 +1251,9 @@ export default function App() {
                 This signature will be appended to all new outreach emails and replies.
               </p>
               <div style={{ background: '#fff', borderRadius: '6px', border: '1px solid var(--line)', overflow: 'hidden' }}>
+                <style>{`.settings-quill .ql-editor { min-height: 200px; max-height: 400px; overflow-y: auto; }`}</style>
                 <ReactQuill 
+                  className="settings-quill"
                   theme="snow"
                   value={emailSignature} 
                   onChange={setEmailSignature}
