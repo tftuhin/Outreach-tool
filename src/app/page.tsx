@@ -966,7 +966,7 @@ export default function App() {
                           disabled={sendingEmail}
                           style={{ padding: '6px 12px', fontSize: '12px' }}
                         >
-                          {sendingEmail ? 'Sending...' : '📤 Send via Gmail'}
+                          {sendingEmail ? 'Sending...' : 'Send via Gmail'}
                         </button>
                       </div>
                     </div>
@@ -1140,7 +1140,7 @@ export default function App() {
                         disabled={sendingReply || !replyText.trim()}
                         style={{ padding: '6px 16px', fontSize: '13px' }}
                       >
-                        {sendingReply ? 'Sending Reply...' : '📤 Send Reply'}
+                        {sendingReply ? 'Sending Reply...' : 'Send Reply'}
                       </button>
                     </div>
                   </div>
@@ -1164,7 +1164,7 @@ export default function App() {
                       onClick={() => handleReviewAndSend(selectedLead)}
                       disabled={sendingEmail}
                     >
-                      {sendingEmail ? 'Sending...' : '📤 Review & send with Gmail'}
+                      {sendingEmail ? 'Sending...' : 'Review & send with Gmail'}
                     </button>
                   )}
                   {selectedLead.status === 'pending' && (
@@ -1280,7 +1280,7 @@ export default function App() {
                 disabled={sendingEmail}
                 style={{minWidth: '120px', justifyContent: 'center'}}
               >
-                {sendingEmail ? 'Sending...' : '📤 Send Email'}
+                {sendingEmail ? 'Sending...' : 'Send Email'}
               </button>
             </div>
           </div>
