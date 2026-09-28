@@ -3,13 +3,20 @@ import { getGoogleAuth } from '@/lib/googleAuth';
 import { Client } from 'pg';
 import { google } from 'googleapis';
 
-function createMimeMessage(to: string, subject: string, body: string, inReplyTo?: string, references?: string): string {
+function createMimeMessage(to: string, cc: string | undefined, subject: string, body: string, inReplyTo?: string, references?: string): string {
   const lines = [
     `To: ${to}`,
+  ];
+
+  if (cc) {
+    lines.push(`Cc: ${cc}`);
+  }
+
+  lines.push(
     `Subject: ${subject}`,
     'MIME-Version: 1.0',
     'Content-Type: text/html; charset=utf-8'
-  ];
+  );
 
   if (inReplyTo) {
     lines.push(`In-Reply-To: ${inReplyTo}`);
@@ -30,7 +37,7 @@ function createMimeMessage(to: string, subject: string, body: string, inReplyTo?
 
 export async function POST(request: Request) {
   try {
-    const { leadId, to, subject, body, threadId, inReplyTo } = await request.json();
+    const { leadId, to, cc, subject, body, threadId, inReplyTo } = await request.json();
 
     if (!to || !subject || !body) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -74,7 +81,7 @@ export async function POST(request: Request) {
 
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
     
-    const raw = createMimeMessage(to, subject, finalBody, inReplyTo, inReplyTo);
+    const raw = createMimeMessage(to, cc, subject, finalBody, inReplyTo, inReplyTo);
     
     const requestBody: any = { raw };
     if (threadId) {

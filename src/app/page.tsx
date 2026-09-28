@@ -421,6 +421,7 @@ export default function App() {
         body: JSON.stringify({
           leadId: lead.lead_id,
           to: lead.contact_info?.email,
+          cc: lead.draft_message?.cc,
           subject: (lead.draft_message?.subject || '').replace(/—/g, '-'),
           body: (lead.draft_message?.body || '').replace(/—/g, '-')
         })
@@ -504,6 +505,7 @@ export default function App() {
         body: JSON.stringify({
           leadId: selectedLead.lead_id,
           to: selectedLead.contact_info.email,
+          cc: selectedLead.draft_message?.cc,
           subject,
           body: replyText.trim(),
           threadId: conversationThreadId,
@@ -992,17 +994,31 @@ export default function App() {
                   <h3>Email Outreach</h3>
                   <div className="mail">
                     <div className="bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
-                      <div className="to" style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: '200px' }}>
-                        <strong>To:</strong> 
-                        <input 
-                          type="email" 
-                          value={selectedLead.contact_info?.email || ''} 
-                          onChange={(e) => handleInputChange('contact_info.email', e.target.value)} 
-                          style={{ border: '1px solid transparent', background: 'transparent', outline: 'none', flex: 1, fontSize: '13px', padding: '2px 6px', borderRadius: '4px', transition: 'all 0.2s' }} 
-                          onFocus={(e) => { e.target.style.border = '1px solid var(--line)'; e.target.style.background = '#fff'; }}
-                          onBlur={(e) => { e.target.style.border = '1px solid transparent'; e.target.style.background = 'transparent'; }}
-                          placeholder="No email provided"
-                        />
+                      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: '200px', gap: '4px' }}>
+                        <div className="to" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <strong>To:</strong> 
+                          <input 
+                            type="email" 
+                            value={selectedLead.contact_info?.email || ''} 
+                            onChange={(e) => handleInputChange('contact_info.email', e.target.value)} 
+                            style={{ border: '1px solid transparent', background: 'transparent', outline: 'none', flex: 1, fontSize: '13px', padding: '2px 6px', borderRadius: '4px', transition: 'all 0.2s' }} 
+                            onFocus={(e) => { e.target.style.border = '1px solid var(--line)'; e.target.style.background = '#fff'; }}
+                            onBlur={(e) => { e.target.style.border = '1px solid transparent'; e.target.style.background = 'transparent'; }}
+                            placeholder="No email provided"
+                          />
+                        </div>
+                        <div className="to" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <strong>Cc:</strong> 
+                          <input 
+                            type="text" 
+                            value={selectedLead.draft_message?.cc || ''} 
+                            onChange={(e) => handleInputChange('draft_message.cc', e.target.value)} 
+                            style={{ border: '1px solid transparent', background: 'transparent', outline: 'none', flex: 1, fontSize: '13px', padding: '2px 6px', borderRadius: '4px', transition: 'all 0.2s' }} 
+                            onFocus={(e) => { e.target.style.border = '1px solid var(--line)'; e.target.style.background = '#fff'; }}
+                            onBlur={(e) => { e.target.style.border = '1px solid transparent'; e.target.style.background = 'transparent'; }}
+                            placeholder="Optional CC (comma-separated)"
+                          />
+                        </div>
                       </div>
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <button className="btn" onClick={() => copyToClipboard((selectedLead.draft_message?.body || '').replace(/—/g, '-'))}>Copy Body</button>
@@ -1173,6 +1189,18 @@ export default function App() {
                           Subject: {conversationSubject.startsWith('Re:') ? conversationSubject : `Re: ${conversationSubject}`}
                         </span>
                       )}
+                    </div>
+                    <div className="to" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', fontSize: '13px' }}>
+                      <strong>Cc:</strong> 
+                      <input 
+                        type="text" 
+                        value={selectedLead.draft_message?.cc || ''} 
+                        onChange={(e) => handleInputChange('draft_message.cc', e.target.value)} 
+                        style={{ border: '1px solid transparent', background: 'transparent', outline: 'none', flex: 1, fontSize: '13px', padding: '2px 6px', borderRadius: '4px', transition: 'all 0.2s' }} 
+                        onFocus={(e) => { e.target.style.border = '1px solid var(--line)'; e.target.style.background = '#fff'; }}
+                        onBlur={(e) => { e.target.style.border = '1px solid transparent'; e.target.style.background = 'transparent'; }}
+                        placeholder="Optional CC (comma-separated)"
+                      />
                     </div>
                     <div style={{ background: '#fff', borderRadius: '6px', border: '1px solid var(--line)', overflow: 'hidden' }}>
                       <ReactQuill 
@@ -1410,13 +1438,20 @@ export default function App() {
                 <span style={{color: 'var(--muted)', minWidth: '55px'}}>To:</span>
                 <span style={{color: 'var(--ink)', fontWeight: 600}}>{sendTargetLead.contact_info?.email}</span>
               </div>
+              {sendTargetLead.draft_message?.cc && (
+                <div style={{fontSize: '13px', display: 'flex', gap: '6px'}}>
+                  <span style={{color: 'var(--muted)', minWidth: '55px'}}>Cc:</span>
+                  <span style={{color: 'var(--ink)', fontWeight: 600}}>{sendTargetLead.draft_message.cc}</span>
+                </div>
+              )}
               <div style={{fontSize: '13px', display: 'flex', gap: '6px'}}>
                 <span style={{color: 'var(--muted)', minWidth: '55px'}}>Subject:</span>
                 <span style={{color: 'var(--ink)', fontWeight: 600}}>{sendTargetLead.draft_message?.subject}</span>
               </div>
-              <div style={{fontSize: '12px', color: 'var(--muted)', marginTop: '4px', borderTop: '1px dashed var(--line)', paddingTop: '8px', maxHeight: '130px', overflowY: 'auto', whiteSpace: 'pre-wrap', lineHeight: '1.5'}}>
-                {sendTargetLead.draft_message?.body}
-              </div>
+              <div 
+                style={{fontSize: '12px', color: 'var(--muted)', marginTop: '4px', borderTop: '1px dashed var(--line)', paddingTop: '8px', maxHeight: '130px', overflowY: 'auto', lineHeight: '1.5'}}
+                dangerouslySetInnerHTML={{ __html: sendTargetLead.draft_message?.body || '' }}
+              />
             </div>
 
             <div style={{display: 'flex', justifyContent: 'flex-end', gap: '10px'}}>
