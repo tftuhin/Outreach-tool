@@ -220,7 +220,7 @@ export default function App() {
           // If current selected lead was one of the replied leads, reload its conversation
           if (selectedLeadId && data.updatedLeadIds?.includes(selectedLeadId)) {
             const currentLead = newLeads.find((l: any) => l.lead_id === selectedLeadId);
-            if (currentLead?.contact_info?.email) {
+            if (currentLead?.contact_info?.email && currentLead.contact_info.email.includes('@')) {
               fetch(`/api/gmail/conversation?email=${encodeURIComponent(currentLead.contact_info.email)}`)
                 .then(r => r.json())
                 .then(d => {
@@ -252,7 +252,7 @@ export default function App() {
 
   // Fetch conversation when selected lead changes
   useEffect(() => {
-    if (!selectedLead?.contact_info?.email || !gmailConnected) {
+    if (!selectedLead?.contact_info?.email || !selectedLead.contact_info.email.includes('@') || !gmailConnected) {
       setConversation([]);
       setConversationThreadId(undefined);
       setConversationSubject(undefined);
@@ -303,17 +303,19 @@ export default function App() {
     }
   };
 
-  const markAsOutreached = async (leadId: string) => {
+  const changeLeadStatus = async (leadId: string, newStatus: string) => {
     // Optimistic update
-    setLeads(leads.map(l => l.lead_id === leadId ? { ...l, status: 'outreached' } : l));
-    setSelectedLeadId(null);
+    setLeads(leads.map(l => l.lead_id === leadId ? { ...l, status: newStatus } : l));
+    if (newStatus !== 'pending' && newStatus !== 'outreached' && newStatus !== 'responded') {
+      setSelectedLeadId(null);
+    }
     
     // API call
     try {
       await fetch(`/api/leads/${leadId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'outreached' })
+        body: JSON.stringify({ status: newStatus })
       });
     } catch (err) {
       console.error("Failed to update status", err);
@@ -1043,7 +1045,7 @@ export default function App() {
                       </span>
                     )}
                   </h3>
-                  {gmailConnected && selectedLead.contact_info?.email && (
+                  {gmailConnected && selectedLead.contact_info?.email?.includes('@') && (
                     <button 
                       className="btn" 
                       style={{ padding: '4px 8px', fontSize: '11px' }}
@@ -1215,8 +1217,13 @@ export default function App() {
                     </button>
                   )}
                   {selectedLead.status === 'pending' && (
-                    <button className="btn primary" style={{background: '#10b981', color: '#fff', borderColor: '#10b981'}} onClick={() => markAsOutreached(selectedLead.lead_id)}>
+                    <button className="btn primary" style={{background: '#10b981', color: '#fff', borderColor: '#10b981'}} onClick={() => changeLeadStatus(selectedLead.lead_id, 'outreached')}>
                       ✓ Mark as Outreached
+                    </button>
+                  )}
+                  {(selectedLead.status === 'outreached' || selectedLead.status === 'responded') && (
+                    <button className="btn" style={{color: 'var(--muted)'}} onClick={() => changeLeadStatus(selectedLead.lead_id, 'pending')}>
+                      ↩ Revert to Pending
                     </button>
                   )}
                 </>
