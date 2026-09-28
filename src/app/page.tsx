@@ -2,6 +2,10 @@
 
 import { useState, useEffect } from "react";
 import Papa from "papaparse";
+import dynamic from "next/dynamic";
+import "react-quill/dist/quill.snow.css";
+
+const ReactQuill = dynamic(() => import("react-quill"), { ssr: false });
 
 const getFirstUrl = (text: string | undefined | null) => {
   if (!text) return undefined;
@@ -978,10 +982,11 @@ export default function App() {
                         onChange={(e) => handleInputChange('draft_message.subject', e.target.value)}
                       />
                     </div>
-                    <textarea 
-                      style={{minHeight: '350px'}}
+                    <ReactQuill 
+                      theme="snow"
                       value={(selectedLead.draft_message?.body || '').replace(/—/g, '-')} 
-                      onChange={(e) => handleInputChange('draft_message.body', e.target.value)}
+                      onChange={(content) => handleInputChange('draft_message.body', content)}
+                      style={{background: '#fff', border: 'none', borderRadius: '0 0 8px 8px'}}
                     />
                   </div>
                 </div>
@@ -1127,12 +1132,14 @@ export default function App() {
                         </span>
                       )}
                     </div>
-                    <textarea
-                      style={{ width: '100%', minHeight: '90px', padding: '10px 12px', borderRadius: '6px', border: '1px solid var(--line)', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical', background: '#fff' }}
-                      placeholder={`Write a reply to ${selectedLead.contact_info?.email}...`}
-                      value={replyText}
-                      onChange={(e) => setReplyText(e.target.value)}
-                    />
+                    <div style={{ background: '#fff', borderRadius: '6px', border: '1px solid var(--line)', overflow: 'hidden' }}>
+                      <ReactQuill 
+                        theme="snow"
+                        value={replyText} 
+                        onChange={setReplyText}
+                        placeholder={`Write a reply to ${selectedLead.contact_info?.email}...`}
+                      />
+                    </div>
                     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
                       <button
                         className="btn primary"
