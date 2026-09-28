@@ -53,12 +53,23 @@ export async function POST(request: Request) {
       ? JSON.parse(result.rows[0].value) 
       : result.rows[0].value;
 
+    const sigResult = await client.query("SELECT value FROM settings WHERE key = 'email_signature'");
+    let signature = '';
+    if (sigResult.rows.length > 0 && sigResult.rows[0].value) {
+      signature = sigResult.rows[0].value;
+      if (typeof signature === 'string') {
+        try { signature = JSON.parse(signature); } catch(e) {}
+      }
+    }
+    
+    const finalBody = signature ? `${body}<br/><br/>${signature}` : body;
+
     const oauth2Client = getGoogleAuth();
     oauth2Client.setCredentials(authData.tokens);
 
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
     
-    const raw = createMimeMessage(to, subject, body, inReplyTo, inReplyTo);
+    const raw = createMimeMessage(to, subject, finalBody, inReplyTo, inReplyTo);
     
     const requestBody: any = { raw };
     if (threadId) {

@@ -140,6 +140,11 @@ export default function App() {
   const [lastMessageIdHeader, setLastMessageIdHeader] = useState<string | undefined>(undefined);
   const [expandedTrails, setExpandedTrails] = useState<Record<string, boolean>>({});
 
+  // Settings state
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [emailSignature, setEmailSignature] = useState("");
+  const [savingSettings, setSavingSettings] = useState(false);
+
   // Fetch leads and modules on mount
   useEffect(() => {
     fetch('/api/leads')
@@ -167,6 +172,15 @@ export default function App() {
         if (data.connected) {
           setGmailConnected(true);
           setGmailEmail(data.email);
+        }
+      })
+      .catch(console.error);
+
+    fetch('/api/settings')
+      .then(res => res.json())
+      .then(data => {
+        if (data.signature) {
+          setEmailSignature(data.signature);
         }
       })
       .catch(console.error);
@@ -778,6 +792,10 @@ export default function App() {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '6px'}}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
               Export Data
             </button>
+            <button className="btn" style={{padding: '6px 12px', fontSize: '12px', fontWeight: 600}} onClick={() => setIsSettingsModalOpen(true)}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '6px'}}><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+              Settings
+            </button>
           </div>
         </header>
 
@@ -1217,6 +1235,54 @@ export default function App() {
             {importing && <p style={{fontSize: '13px', color: 'var(--brand)', marginTop: '12px', fontWeight: 600}}>Importing leads... Please wait.</p>}
             <div style={{marginTop: '24px', display: 'flex', justifyContent: 'flex-end'}}>
               <button className="btn" onClick={() => setIsImportModalOpen(false)} disabled={importing}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isSettingsModalOpen && (
+        <div style={{position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000}}>
+          <div style={{background: '#fff', padding: '24px', borderRadius: '12px', width: '600px', maxWidth: '90%', boxShadow: '0 10px 25px rgba(0,0,0,0.1)'}}>
+            <h2 style={{marginTop: 0, fontSize: '18px'}}>Settings</h2>
+            
+            <div style={{marginBottom: '20px'}}>
+              <label style={{display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--ink)', marginBottom: '8px'}}>Email Signature</label>
+              <p style={{fontSize: '12px', color: 'var(--muted)', marginBottom: '12px'}}>
+                This signature will be appended to all new outreach emails and replies.
+              </p>
+              <div style={{ background: '#fff', borderRadius: '6px', border: '1px solid var(--line)', overflow: 'hidden' }}>
+                <ReactQuill 
+                  theme="snow"
+                  value={emailSignature} 
+                  onChange={setEmailSignature}
+                  placeholder="Write your email signature here..."
+                />
+              </div>
+            </div>
+
+            <div style={{marginTop: '24px', display: 'flex', justifyContent: 'flex-end', gap: '8px'}}>
+              <button className="btn" onClick={() => setIsSettingsModalOpen(false)} disabled={savingSettings}>Cancel</button>
+              <button 
+                className="btn primary" 
+                disabled={savingSettings}
+                onClick={async () => {
+                  setSavingSettings(true);
+                  try {
+                    await fetch('/api/settings', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ signature: emailSignature })
+                    });
+                    setIsSettingsModalOpen(false);
+                  } catch (e) {
+                    console.error('Failed to save settings', e);
+                  } finally {
+                    setSavingSettings(false);
+                  }
+                }}
+              >
+                {savingSettings ? 'Saving...' : 'Save Settings'}
+              </button>
             </div>
           </div>
         </div>
