@@ -21,6 +21,16 @@ const extractPhone = (str: string | undefined | null) => {
 
 const cleanPhone = (phone: string) => phone.replace(/[^0-9+]/g, '');
 
+const formatForQuill = (text: string | undefined | null) => {
+  if (!text) return '';
+  let str = text.replace(/—/g, '-');
+  // If it doesn't look like HTML (no <p>, <br>, <strong>, etc.), replace newlines with <br>
+  if (!/<[a-z][\s\S]*>/i.test(str)) {
+    return str.replace(/\n/g, '<br/>');
+  }
+  return str;
+};
+
 const CopyIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{cursor:'pointer', marginLeft:'6px', color:'var(--muted)'}}>
     <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -984,7 +994,7 @@ export default function App() {
                     </div>
                     <ReactQuill 
                       theme="snow"
-                      value={(selectedLead.draft_message?.body || '').replace(/—/g, '-')} 
+                      value={formatForQuill(selectedLead.draft_message?.body)} 
                       onChange={(content) => handleInputChange('draft_message.body', content)}
                       style={{background: '#fff', border: 'none', borderRadius: '0 0 8px 8px'}}
                     />
