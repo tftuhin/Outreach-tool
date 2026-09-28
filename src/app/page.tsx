@@ -1467,7 +1467,7 @@ export default function App() {
               </div>
               <div 
                 style={{fontSize: '12px', color: 'var(--muted)', marginTop: '4px', borderTop: '1px dashed var(--line)', paddingTop: '8px', maxHeight: '130px', overflowY: 'auto', lineHeight: '1.5'}}
-                dangerouslySetInnerHTML={{ __html: sendTargetLead.draft_message?.body || '' }}
+                dangerouslySetInnerHTML={{ __html: (sendTargetLead.draft_message?.body || '') + (emailSignature ? `<div style="margin-top: 12px;">${emailSignature.replace(/<p>/gi, '<p style="margin: 0; padding: 0; line-height: 1.2;">')}</div>` : '') }}
               />
             </div>
 
