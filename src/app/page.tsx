@@ -1319,7 +1319,7 @@ export default function App() {
                     <div style={{fontSize: '12px', fontWeight: 600, color: 'var(--muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em'}}>Live Preview</div>
                     <div 
                       style={{ padding: '16px', borderRadius: '6px', border: '1px solid var(--line)', background: '#fff', minHeight: '100px' }}
-                      dangerouslySetInnerHTML={{ __html: emailSignature || '<span style="color: var(--muted); font-style: italic;">No signature content</span>' }}
+                      dangerouslySetInnerHTML={{ __html: (emailSignature || '<span style="color: var(--muted); font-style: italic;">No signature content</span>').replace(/<p>/gi, '<p style="margin: 0; padding: 0; line-height: 1.2;">') }}
                     />
                   </div>
                 </div>

@@ -61,8 +61,13 @@ export async function POST(request: Request) {
         try { signature = JSON.parse(signature); } catch(e) {}
       }
     }
+    if (signature) {
+      // Apply zero margin to paragraphs in the signature to reduce line spacing
+      signature = signature.replace(/<p>/gi, '<p style="margin: 0; padding: 0; line-height: 1.2;">');
+      signature = `<div style="margin-top: 12px;">${signature}</div>`;
+    }
     
-    const finalBody = signature ? `${body}<br/><br/>${signature}` : body;
+    const finalBody = signature ? `${body}${signature}` : body;
 
     const oauth2Client = getGoogleAuth();
     oauth2Client.setCredentials(authData.tokens);
