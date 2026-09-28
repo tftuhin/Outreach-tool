@@ -42,10 +42,10 @@ export async function POST(request: Request) {
     
     // Upsert into settings table
     const query = `
-      INSERT INTO settings (key, value, updated_at) 
-      VALUES ('email_signature', $1, NOW()) 
+      INSERT INTO settings (key, value) 
+      VALUES ('email_signature', $1) 
       ON CONFLICT (key) 
-      DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+      DO UPDATE SET value = EXCLUDED.value
     `;
     
     // We store the raw HTML string as the value. Since the settings table column is JSONB, 
