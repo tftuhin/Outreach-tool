@@ -1461,7 +1461,7 @@ export default function App() {
       )}
       {isSendConfirmOpen && sendTargetLead && (
         <div style={{position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000}}>
-          <div style={{background: '#fff', padding: '24px', borderRadius: '12px', width: '460px', maxWidth: '92%', boxShadow: '0 10px 25px rgba(0,0,0,0.1)'}}>
+          <div style={{background: '#fff', padding: '24px', borderRadius: '12px', width: '650px', maxWidth: '92%', boxShadow: '0 10px 25px rgba(0,0,0,0.1)'}}>
             <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px'}}>
               <div style={{width: '38px', height: '38px', borderRadius: '10px', background: 'var(--accent-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)'}}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
@@ -1498,7 +1498,7 @@ export default function App() {
                 <span style={{color: 'var(--ink)', fontWeight: 600}}>{sendTargetLead.draft_message?.subject}</span>
               </div>
               <div 
-                style={{fontSize: '12px', color: 'var(--muted)', marginTop: '4px', borderTop: '1px dashed var(--line)', paddingTop: '8px', maxHeight: '130px', overflowY: 'auto', lineHeight: '1.5'}}
+                style={{fontSize: '13px', color: 'var(--muted)', marginTop: '4px', borderTop: '1px dashed var(--line)', paddingTop: '12px', maxHeight: '350px', overflowY: 'auto', lineHeight: '1.6'}}
                 dangerouslySetInnerHTML={{ __html: (sendTargetLead.draft_message?.body || '') + (emailSignature ? `<div style="margin-top: 12px;">${emailSignature.replace(/<p>/gi, '<p style="margin: 0; padding: 0; line-height: 1.2;">')}</div>` : '') }}
               />
             </div>
