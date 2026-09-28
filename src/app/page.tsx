@@ -429,6 +429,7 @@ export default function App() {
           leadId: lead.lead_id,
           to: lead.contact_info?.email,
           cc: lead.draft_message?.cc,
+          bcc: lead.draft_message?.bcc,
           subject: (lead.draft_message?.subject || '').replace(/—/g, '-'),
           body: (lead.draft_message?.body || '').replace(/—/g, '-')
         })
@@ -523,6 +524,7 @@ export default function App() {
           leadId: selectedLead.lead_id,
           to: selectedLead.contact_info.email,
           cc: selectedLead.draft_message?.cc,
+          bcc: selectedLead.draft_message?.bcc,
           subject,
           body: replyText.trim(),
           threadId: conversationThreadId,
@@ -1036,6 +1038,18 @@ export default function App() {
                             placeholder="Optional CC (comma-separated)"
                           />
                         </div>
+                        <div className="to" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <strong>Bcc:</strong> 
+                          <input 
+                            type="text" 
+                            value={selectedLead.draft_message?.bcc || ''} 
+                            onChange={(e) => handleInputChange('draft_message.bcc', e.target.value)} 
+                            style={{ border: '1px solid transparent', background: 'transparent', outline: 'none', flex: 1, fontSize: '13px', padding: '2px 6px', borderRadius: '4px', transition: 'all 0.2s' }} 
+                            onFocus={(e) => { e.target.style.border = '1px solid var(--line)'; e.target.style.background = '#fff'; }}
+                            onBlur={(e) => { e.target.style.border = '1px solid transparent'; e.target.style.background = 'transparent'; }}
+                            placeholder="Optional BCC (comma-separated)"
+                          />
+                        </div>
                       </div>
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <button className="btn" onClick={() => copyToClipboard((selectedLead.draft_message?.body || '').replace(/—/g, '-'))}>Copy Body</button>
@@ -1217,6 +1231,18 @@ export default function App() {
                         onFocus={(e) => { e.target.style.border = '1px solid var(--line)'; e.target.style.background = '#fff'; }}
                         onBlur={(e) => { e.target.style.border = '1px solid transparent'; e.target.style.background = 'transparent'; }}
                         placeholder="Optional CC (comma-separated)"
+                      />
+                    </div>
+                    <div className="to" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', fontSize: '13px' }}>
+                      <strong>Bcc:</strong> 
+                      <input 
+                        type="text" 
+                        value={selectedLead.draft_message?.bcc || ''} 
+                        onChange={(e) => handleInputChange('draft_message.bcc', e.target.value)} 
+                        style={{ border: '1px solid transparent', background: 'transparent', outline: 'none', flex: 1, fontSize: '13px', padding: '2px 6px', borderRadius: '4px', transition: 'all 0.2s' }} 
+                        onFocus={(e) => { e.target.style.border = '1px solid var(--line)'; e.target.style.background = '#fff'; }}
+                        onBlur={(e) => { e.target.style.border = '1px solid transparent'; e.target.style.background = 'transparent'; }}
+                        placeholder="Optional BCC (comma-separated)"
                       />
                     </div>
                     <div style={{ background: '#fff', borderRadius: '6px', border: '1px solid var(--line)', overflow: 'hidden' }}>
@@ -1459,6 +1485,12 @@ export default function App() {
                 <div style={{fontSize: '13px', display: 'flex', gap: '6px'}}>
                   <span style={{color: 'var(--muted)', minWidth: '55px'}}>Cc:</span>
                   <span style={{color: 'var(--ink)', fontWeight: 600}}>{sendTargetLead.draft_message.cc}</span>
+                </div>
+              )}
+              {sendTargetLead.draft_message?.bcc && (
+                <div style={{fontSize: '13px', display: 'flex', gap: '6px'}}>
+                  <span style={{color: 'var(--muted)', minWidth: '55px'}}>Bcc:</span>
+                  <span style={{color: 'var(--ink)', fontWeight: 600}}>{sendTargetLead.draft_message.bcc}</span>
                 </div>
               )}
               <div style={{fontSize: '13px', display: 'flex', gap: '6px'}}>
