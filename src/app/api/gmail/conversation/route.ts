@@ -103,7 +103,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const email = searchParams.get('email');
 
-  if (!email) {
+  if (!email || email === 'undefined' || email.trim() === '') {
     return NextResponse.json({ error: 'Email parameter is required' }, { status: 400 });
   }
 
