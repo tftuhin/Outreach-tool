@@ -756,34 +756,6 @@ export default function App() {
             )}
           </div>
           <div style={{display: 'flex', gap: '8px'}}>
-            <button 
-              className="btn" 
-              style={{padding: '6px 12px', fontSize: '12px', fontWeight: 600, color: 'var(--accent)', borderColor: 'var(--accent)'}} 
-              title="Add or reset test lead (tuhin59083@gmail.com)"
-              onClick={async () => {
-                try {
-                  const res = await fetch('/api/leads/test-lead');
-                  const data = await res.json();
-                  if (data.success) {
-                    const leadsRes = await fetch('/api/leads');
-                    const updatedLeads = await leadsRes.json();
-                    setLeads(updatedLeads);
-                    setActiveTab('pending');
-                    setSelectedLeadId('lead_000');
-                    setFeedbackModal({
-                      isOpen: true,
-                      type: 'success',
-                      title: 'Test Lead Ready!',
-                      message: 'Test lead for tuhin59083@gmail.com is now loaded and selected at the top of your list.'
-                    });
-                  }
-                } catch (e) {
-                  console.error(e);
-                }
-              }}
-            >
-              + Test Lead
-            </button>
             <button className="btn" style={{padding: '6px 12px', fontSize: '12px', fontWeight: 600}} onClick={() => setIsImportModalOpen(true)}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '6px'}}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
               Import Data
