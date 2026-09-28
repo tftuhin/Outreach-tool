@@ -835,7 +835,7 @@ export default function App() {
               <div className="sec">
                 <h3>Contact Info</h3>
                 <div className="grid">
-                  <div className="kv" style={{gridColumn: '1 / -1'}}>
+                  <div className="kv">
                     <div className="k">Address & Location</div>
                     {isEditing ? <input style={{width:'100%'}} value={selectedLead.contact_info.address} onChange={e => handleInputChange('contact_info.address', e.target.value)} /> : (
                       <ul className="comp-list" style={{marginTop:0}}>
@@ -848,46 +848,49 @@ export default function App() {
                     )}
                   </div>
                   <div className="kv">
-                    <div className="k">Email</div>
-                    <ul className="comp-list" style={{marginTop:0}}>
-                      <li style={{display:'flex', alignItems:'center'}}>
-                        <a href={`mailto:${selectedLead.contact_info.email}`} style={{color:'var(--brand)', textDecoration:'underline'}}>{selectedLead.contact_info.email}</a>
+                    <div className="k">Email & Phone</div>
+                    <ul className="comp-list" style={{marginTop:0, display: 'flex', flexDirection: 'column', gap: '8px'}}>
+                      <li style={{display:'flex', alignItems:'center', gap: '6px'}}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                        <a href={`mailto:${selectedLead.contact_info.email}`} style={{color:'var(--brand)', textDecoration:'underline'}}>{selectedLead.contact_info.email || 'N/A'}</a>
                         {selectedLead.contact_info.email && <span onClick={() => copyToClipboard(selectedLead.contact_info.email)} title="Copy Email"><CopyIcon /></span>}
                       </li>
-                      {selectedLead.contact_info.alt_email && <li>{selectedLead.contact_info.alt_email}</li>}
-                    </ul>
-                    {selectedLead.draft_message?.subject && selectedLead.draft_message?.body && selectedLead.contact_info?.email && gmailConnected && (
-                      <div style={{marginTop: '12px'}}>
-                        <button className="btn primary" onClick={() => sendGmail(selectedLead)} disabled={sendingEmail} style={{padding: '6px 12px', fontSize: '12px'}}>
-                          {sendingEmail ? 'Sending...' : '📤 Send Email via Gmail'}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  <div className="kv">
-                    <div className="k">Website</div>
-                    <ul className="comp-list" style={{marginTop:0}}>
-                      <li><a href={selectedLead.contact_info.website} target="_blank" rel="noreferrer" style={{color:'var(--brand)', textDecoration:'underline'}}>{selectedLead.contact_info.website || 'N/A'}</a></li>
-                    </ul>
-                  </div>
-                  <div className="kv">
-                    <div className="k">Phone & WhatsApp</div>
-                    <ul className="comp-list" style={{marginTop:0}}>
-                      <li>
+                      {selectedLead.contact_info.alt_email && (
+                        <li style={{display:'flex', alignItems:'center', gap: '6px'}}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                          <span>{selectedLead.contact_info.alt_email}</span>
+                        </li>
+                      )}
+                      
+                      <li style={{display:'flex', alignItems:'center', gap: '6px', flexWrap: 'wrap'}}>
                         {extractPhone(selectedLead.contact_info.phone_whatsapp) ? (
                           <>
-                            <a href={`tel:${cleanPhone(extractPhone(selectedLead.contact_info.phone_whatsapp))}`} style={{color:'var(--brand)', textDecoration:'underline'}}>{extractPhone(selectedLead.contact_info.phone_whatsapp)}</a>
-                            <a href={`https://wa.me/${cleanPhone(extractPhone(selectedLead.contact_info.phone_whatsapp))}`} target="_blank" rel="noreferrer" style={{marginLeft:'10px', color:'#25D366', textDecoration:'none', fontWeight:'bold'}}>💬 WhatsApp</a>
+                            <div style={{display:'flex', alignItems:'center', gap: '6px'}}>
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                              <a href={`tel:${cleanPhone(extractPhone(selectedLead.contact_info.phone_whatsapp))}`} style={{color:'var(--brand)', textDecoration:'underline'}}>{extractPhone(selectedLead.contact_info.phone_whatsapp)}</a>
+                            </div>
+                            <div style={{display:'flex', alignItems:'center', gap: '6px', marginLeft: '12px'}}>
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+                              <a href={`https://wa.me/${cleanPhone(extractPhone(selectedLead.contact_info.phone_whatsapp))}`} target="_blank" rel="noreferrer" style={{color:'inherit', textDecoration:'none', fontWeight:500}}>WhatsApp</a>
+                            </div>
                           </>
                         ) : (
-                          <span>{selectedLead.contact_info.phone_whatsapp || 'N/A'}</span>
+                          <div style={{display:'flex', alignItems:'center', gap: '6px'}}>
+                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                             <span>{selectedLead.contact_info.phone_whatsapp || 'N/A'}</span>
+                          </div>
                         )}
                       </li>
                     </ul>
                   </div>
                   <div className="kv">
-                    <div className="k">Social Media</div>
-                    <div className="v" style={{display:'flex', gap:'12px', alignItems:'center', marginTop:'8px'}}>
+                    <div className="k">Website & Social Media</div>
+                    <div className="v" style={{display:'flex', gap:'16px', alignItems:'center', marginTop:'8px'}}>
+                      {selectedLead.contact_info.website ? (
+                        <a href={selectedLead.contact_info.website} target="_blank" rel="noreferrer" title="Website" style={{color: 'var(--fg)', textDecoration: 'none'}}>
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                        </a>
+                      ) : <span style={{color:'var(--muted)', fontSize:'12px'}}>No Web</span>}
                       {getFirstUrl(selectedLead.contact_info.facebook) ? (
                         <a href={getFirstUrl(selectedLead.contact_info.facebook)} target="_blank" rel="noreferrer" title="Facebook">
                           <svg width="24" height="24" viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.469h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.469h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
