@@ -304,11 +304,18 @@ export default function App() {
   };
 
   const changeLeadStatus = async (leadId: string, newStatus: string) => {
+    // Auto-advance to next lead if the lead will disappear from current tab view
+    if (activeTab !== "all" && activeTab !== newStatus) {
+      const currentIdx = filteredLeads.findIndex(l => l.lead_id === leadId);
+      if (currentIdx !== -1 && currentIdx + 1 < filteredLeads.length) {
+        setSelectedLeadId(filteredLeads[currentIdx + 1].lead_id);
+      } else {
+        setSelectedLeadId(null);
+      }
+    }
+
     // Optimistic update
     setLeads(leads.map(l => l.lead_id === leadId ? { ...l, status: newStatus } : l));
-    if (newStatus !== 'pending' && newStatus !== 'outreached' && newStatus !== 'responded') {
-      setSelectedLeadId(null);
-    }
     
     // API call
     try {
@@ -430,6 +437,16 @@ export default function App() {
       setIsSendConfirmOpen(false);
 
       if (data.success) {
+        // Auto-advance to next lead if we're not in the "all" tab
+        if (activeTab === "pending") {
+          const currentIdx = filteredLeads.findIndex(l => l.lead_id === lead.lead_id);
+          if (currentIdx !== -1 && currentIdx + 1 < filteredLeads.length) {
+            setSelectedLeadId(filteredLeads[currentIdx + 1].lead_id);
+          } else {
+            setSelectedLeadId(null);
+          }
+        }
+        
         setLeads(leads.map(l => l.lead_id === lead.lead_id ? { ...l, status: 'outreached' } : l));
         setFeedbackModal({
           isOpen: true,
