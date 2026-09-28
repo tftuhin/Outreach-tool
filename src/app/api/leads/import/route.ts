@@ -17,10 +17,26 @@ export async function POST(request: Request) {
     await client.connect();
     
     let importedCount = 0;
+    const duplicates: string[] = [];
 
     for (const lead of leads) {
       // Basic validation
       if (!lead.business_name) continue;
+
+      // Check for duplicates
+      const checkDupeQuery = `
+        SELECT business_name FROM leads 
+        WHERE (email = $1 AND email IS NOT NULL) 
+           OR (business_name = $2 AND module = $3)
+        LIMIT 1
+      `;
+      const checkDupeValues = [lead.email || null, lead.business_name, module || 'Dentist'];
+      const dupeRes = await client.query(checkDupeQuery, checkDupeValues);
+      
+      if (dupeRes.rows.length > 0) {
+        duplicates.push(lead.business_name);
+        continue; // Skip duplicate
+      }
 
       const query = `
         INSERT INTO leads (
@@ -70,7 +86,7 @@ export async function POST(request: Request) {
     }
 
     await client.end();
-    return NextResponse.json({ success: true, imported: importedCount });
+    return NextResponse.json({ success: true, imported: importedCount, duplicates });
   } catch (err) {
     console.error('Import failed', err);
     if (client) await client.end();

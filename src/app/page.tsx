@@ -644,7 +644,11 @@ export default function App() {
         });
         const resData = await res.json();
         if (resData.success) {
-          alert(`Successfully imported ${resData.imported} leads!`);
+          let msg = `Successfully imported ${resData.imported} leads!`;
+          if (resData.duplicates && resData.duplicates.length > 0) {
+            msg += `\n\nSkipped ${resData.duplicates.length} duplicate leads:\n${resData.duplicates.slice(0, 10).join(', ')}${resData.duplicates.length > 10 ? '...' : ''}`;
+          }
+          alert(msg);
           window.location.reload();
         } else {
           alert('Import failed.');
