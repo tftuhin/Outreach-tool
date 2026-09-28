@@ -144,6 +144,7 @@ export default function App() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [emailSignature, setEmailSignature] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
+  const [signatureMode, setSignatureMode] = useState<'rich' | 'html'>('rich');
 
   // Fetch leads and modules on mount
   useEffect(() => {
@@ -1246,20 +1247,65 @@ export default function App() {
             <h2 style={{marginTop: 0, fontSize: '18px'}}>Settings</h2>
             
             <div style={{marginBottom: '20px'}}>
-              <label style={{display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--ink)', marginBottom: '8px'}}>Email Signature</label>
+              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px'}}>
+                <label style={{fontSize: '13px', fontWeight: 600, color: 'var(--ink)'}}>Email Signature</label>
+                <div style={{display: 'flex', gap: '8px', background: '#f1f5f9', padding: '4px', borderRadius: '6px'}}>
+                  <button 
+                    style={{
+                      border: 'none', background: signatureMode === 'rich' ? '#fff' : 'transparent', 
+                      boxShadow: signatureMode === 'rich' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
+                      padding: '4px 10px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, cursor: 'pointer',
+                      color: signatureMode === 'rich' ? 'var(--ink)' : 'var(--muted)'
+                    }}
+                    onClick={() => setSignatureMode('rich')}
+                  >
+                    Rich Text
+                  </button>
+                  <button 
+                    style={{
+                      border: 'none', background: signatureMode === 'html' ? '#fff' : 'transparent', 
+                      boxShadow: signatureMode === 'html' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
+                      padding: '4px 10px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, cursor: 'pointer',
+                      color: signatureMode === 'html' ? 'var(--ink)' : 'var(--muted)'
+                    }}
+                    onClick={() => setSignatureMode('html')}
+                  >
+                    HTML Code
+                  </button>
+                </div>
+              </div>
               <p style={{fontSize: '12px', color: 'var(--muted)', marginBottom: '12px'}}>
                 This signature will be appended to all new outreach emails and replies.
               </p>
-              <div style={{ background: '#fff', borderRadius: '6px', border: '1px solid var(--line)', overflow: 'hidden' }}>
-                <style>{`.settings-quill .ql-editor { min-height: 200px; max-height: 400px; overflow-y: auto; }`}</style>
-                <ReactQuill 
-                  className="settings-quill"
-                  theme="snow"
-                  value={emailSignature} 
-                  onChange={setEmailSignature}
-                  placeholder="Write your email signature here..."
-                />
-              </div>
+              
+              {signatureMode === 'rich' ? (
+                <div style={{ background: '#fff', borderRadius: '6px', border: '1px solid var(--line)', overflow: 'hidden' }}>
+                  <style>{`.settings-quill .ql-editor { min-height: 200px; max-height: 400px; overflow-y: auto; }`}</style>
+                  <ReactQuill 
+                    className="settings-quill"
+                    theme="snow"
+                    value={emailSignature} 
+                    onChange={setEmailSignature}
+                    placeholder="Write your email signature here..."
+                  />
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <textarea
+                    style={{ width: '100%', minHeight: '200px', maxHeight: '400px', padding: '12px', borderRadius: '6px', border: '1px solid var(--line)', fontSize: '13px', fontFamily: 'monospace', resize: 'vertical', background: '#f8fafc', color: 'var(--ink)' }}
+                    placeholder="<p>Write your raw HTML signature here...</p>"
+                    value={emailSignature}
+                    onChange={(e) => setEmailSignature(e.target.value)}
+                  />
+                  <div>
+                    <div style={{fontSize: '12px', fontWeight: 600, color: 'var(--muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em'}}>Live Preview</div>
+                    <div 
+                      style={{ padding: '16px', borderRadius: '6px', border: '1px solid var(--line)', background: '#fff', minHeight: '100px' }}
+                      dangerouslySetInnerHTML={{ __html: emailSignature || '<span style="color: var(--muted); font-style: italic;">No signature content</span>' }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div style={{marginTop: '24px', display: 'flex', justifyContent: 'flex-end', gap: '8px'}}>
