@@ -990,7 +990,18 @@ export default function App() {
                   <h3>Email Outreach</h3>
                   <div className="mail">
                     <div className="bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
-                      <div className="to"><strong>To:</strong> {selectedLead.contact_info?.email || 'No email provided'}</div>
+                      <div className="to" style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: '200px' }}>
+                        <strong>To:</strong> 
+                        <input 
+                          type="email" 
+                          value={selectedLead.contact_info?.email || ''} 
+                          onChange={(e) => handleInputChange('contact_info.email', e.target.value)} 
+                          style={{ border: '1px solid transparent', background: 'transparent', outline: 'none', flex: 1, fontSize: '13px', padding: '2px 6px', borderRadius: '4px', transition: 'all 0.2s' }} 
+                          onFocus={(e) => { e.target.style.border = '1px solid var(--line)'; e.target.style.background = '#fff'; }}
+                          onBlur={(e) => { e.target.style.border = '1px solid transparent'; e.target.style.background = 'transparent'; }}
+                          placeholder="No email provided"
+                        />
+                      </div>
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <button className="btn" onClick={() => copyToClipboard((selectedLead.draft_message?.body || '').replace(/—/g, '-'))}>Copy Body</button>
                         <button 
