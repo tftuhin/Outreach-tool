@@ -75,7 +75,7 @@ export async function POST(request: Request) {
     if (signature) {
       // Apply zero margin to paragraphs in the signature to reduce line spacing
       signature = signature.replace(/<p>/gi, '<p style="margin: 0; padding: 0; line-height: 1.2;">');
-      signature = `<div style="margin-top: 12px;">${signature}</div>`;
+      signature = `<div style="margin-top: 16px; margin-bottom: 8px;">Best regards,</div><div>${signature}</div>`;
     }
     
     const finalBody = signature ? `${body}${signature}` : body;

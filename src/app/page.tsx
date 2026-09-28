@@ -1499,7 +1499,7 @@ export default function App() {
               </div>
               <div 
                 style={{fontSize: '13px', color: 'var(--muted)', marginTop: '4px', borderTop: '1px dashed var(--line)', paddingTop: '12px', maxHeight: '350px', overflowY: 'auto', lineHeight: '1.6'}}
-                dangerouslySetInnerHTML={{ __html: (sendTargetLead.draft_message?.body || '') + (emailSignature ? `<div style="margin-top: 12px;">${emailSignature.replace(/<p>/gi, '<p style="margin: 0; padding: 0; line-height: 1.2;">')}</div>` : '') }}
+                dangerouslySetInnerHTML={{ __html: (sendTargetLead.draft_message?.body || '') + (emailSignature ? `<div style="margin-top: 16px; margin-bottom: 8px;">Best regards,</div><div>${emailSignature.replace(/<p>/gi, '<p style="margin: 0; padding: 0; line-height: 1.2;">')}</div>` : '') }}
               />
             </div>
 
