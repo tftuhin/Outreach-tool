@@ -222,7 +222,7 @@ export default function App() {
           if (selectedLeadId && data.updatedLeadIds?.includes(selectedLeadId)) {
             const currentLead = newLeads.find((l: any) => l.lead_id === selectedLeadId);
             if (currentLead?.contact_info?.email && currentLead.contact_info.email.includes('@')) {
-              fetch(`/api/gmail/conversation?email=${encodeURIComponent(currentLead.contact_info.email)}`)
+              fetch(`/api/gmail/conversation?email=${encodeURIComponent(currentLead.contact_info.email)}&alt_email=${encodeURIComponent(currentLead.contact_info.alt_email || '')}`)
                 .then(r => r.json())
                 .then(d => {
                   setConversation(d.messages || []);
@@ -265,7 +265,7 @@ export default function App() {
     setLoadingConversation(true);
     setReplyText("");
 
-    fetch(`/api/gmail/conversation?email=${encodeURIComponent(selectedLead.contact_info.email)}`)
+    fetch(`/api/gmail/conversation?email=${encodeURIComponent(selectedLead.contact_info.email)}&alt_email=${encodeURIComponent(selectedLead.contact_info.alt_email || '')}`)
       .then(res => res.json())
       .then(data => {
         if (isMounted) {
@@ -1110,7 +1110,7 @@ export default function App() {
                       disabled={loadingConversation}
                       onClick={() => {
                         setLoadingConversation(true);
-                        fetch(`/api/gmail/conversation?email=${encodeURIComponent(selectedLead.contact_info.email)}`)
+                        fetch(`/api/gmail/conversation?email=${encodeURIComponent(selectedLead.contact_info.email)}&alt_email=${encodeURIComponent(selectedLead.contact_info.alt_email || '')}`)
                           .then(r => r.json())
                           .then(d => {
                             setConversation(d.messages || []);

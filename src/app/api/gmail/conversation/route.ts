@@ -37,15 +37,31 @@ function extractBody(payload: any): string {
   // If HTML only, return simple stripped text if available
   if (payload.body?.data) {
     const raw = decodeBase64(payload.body.data);
-    const noTags = raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-    return noTags
+    const withNewlines = raw
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n\n')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/[ \t]+/g, ' ') // Only condense spaces and tabs, leave newlines intact
+      .replace(/\n\s+\n/g, '\n\n') // Clean up excessive blank lines
+      .trim();
+
+    return withNewlines
       .replace(/&nbsp;/g, ' ')
       .replace(/&amp;/g, '&')
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>')
       .replace(/&quot;/g, '"')
       .replace(/&#39;/g, "'")
-      .replace(/&apos;/g, "'");
+      .replace(/&apos;/g, "'")
+      .replace(/&mdash;/g, '—')
+      .replace(/&ndash;/g, '–')
+      .replace(/&#8211;/g, '–')
+      .replace(/&#8212;/g, '—')
+      .replace(/&#8216;/g, "'")
+      .replace(/&#8217;/g, "'")
+      .replace(/&#8220;/g, '"')
+      .replace(/&#8221;/g, '"')
+      .replace(/&#x27;/g, "'");
   }
 
   return '';
@@ -109,10 +125,15 @@ function stripMessageTrail(text: string): { cleanBody: string; trail?: string } 
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const email = searchParams.get('email');
+  const emailParam = searchParams.get('email');
+  const altEmailParam = searchParams.get('alt_email');
 
-  if (!email || email === 'undefined' || email.trim() === '') {
-    return NextResponse.json({ error: 'Email parameter is required' }, { status: 400 });
+  const emailText = `${emailParam || ''} ${altEmailParam || ''}`;
+  const validEmails = emailText.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi) || [];
+  const cleanEmails = [...new Set(validEmails)];
+
+  if (cleanEmails.length === 0) {
+    return NextResponse.json({ error: 'Valid email parameter is required' }, { status: 400 });
   }
 
   const client = new Client({
@@ -138,9 +159,9 @@ export async function GET(request: Request) {
 
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
-    // Search messages related to this email address
-    const cleanEmail = email.trim();
-    const q = `to:${cleanEmail} OR from:${cleanEmail}`;
+    // Search messages related to these email addresses
+    const queryParts = cleanEmails.map(e => `to:${e} OR from:${e}`);
+    const q = queryParts.length > 1 ? `(${queryParts.join(') OR (')})` : queryParts[0];
     console.log(`[Gmail Sync] Searching for conversation with: ${q}`);
     
     const listRes = await gmail.users.messages.list({
