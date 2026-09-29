@@ -37,7 +37,15 @@ function extractBody(payload: any): string {
   // If HTML only, return simple stripped text if available
   if (payload.body?.data) {
     const raw = decodeBase64(payload.body.data);
-    return raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    const noTags = raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    return noTags
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&apos;/g, "'");
   }
 
   return '';
