@@ -13,58 +13,50 @@ function decodeBase64(data: string): string {
   }
 }
 
-// Helper to recursively extract plain text body from Gmail payload parts
-function extractBody(payload: any): string {
-  if (!payload) return '';
+function extractBody(payload: any): { text: string; html: string } {
+  let text = '';
+  let html = '';
+
+  if (!payload) return { text, html };
 
   if (payload.mimeType === 'text/plain' && payload.body?.data) {
-    return decodeBase64(payload.body.data);
+    text = decodeBase64(payload.body.data);
+  } else if (payload.mimeType === 'text/html' && payload.body?.data) {
+    html = decodeBase64(payload.body.data);
   }
 
   if (payload.parts && Array.isArray(payload.parts)) {
     for (const part of payload.parts) {
       if (part.mimeType === 'text/plain' && part.body?.data) {
-        return decodeBase64(part.body.data);
+        text = decodeBase64(part.body.data);
+      } else if (part.mimeType === 'text/html' && part.body?.data) {
+        html = decodeBase64(part.body.data);
+      } else if (part.parts) {
+        const sub = extractBody(part);
+        if (sub.text) text = sub.text;
+        if (sub.html) html = sub.html;
       }
-    }
-    // Fallback: check subparts
-    for (const part of payload.parts) {
-      const text = extractBody(part);
-      if (text) return text;
     }
   }
 
-  // If HTML only, return simple stripped text if available
-  if (payload.body?.data) {
-    const raw = decodeBase64(payload.body.data);
-    const withNewlines = raw
+  // Fallback text if only HTML exists
+  if (!text && html) {
+    text = html
       .replace(/<br\s*\/?>/gi, '\n')
       .replace(/<\/p>/gi, '\n\n')
       .replace(/<[^>]+>/g, ' ')
-      .replace(/[ \t]+/g, ' ') // Only condense spaces and tabs, leave newlines intact
-      .replace(/\n\s+\n/g, '\n\n') // Clean up excessive blank lines
-      .trim();
-
-    return withNewlines
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\n\s+\n/g, '\n\n')
+      .trim()
       .replace(/&nbsp;/g, ' ')
       .replace(/&amp;/g, '&')
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>')
       .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .replace(/&apos;/g, "'")
-      .replace(/&mdash;/g, '—')
-      .replace(/&ndash;/g, '–')
-      .replace(/&#8211;/g, '–')
-      .replace(/&#8212;/g, '—')
-      .replace(/&#8216;/g, "'")
-      .replace(/&#8217;/g, "'")
-      .replace(/&#8220;/g, '"')
-      .replace(/&#8221;/g, '"')
-      .replace(/&#x27;/g, "'");
+      .replace(/&#39;/g, "'");
   }
 
-  return '';
+  return { text, html };
 }
 
 // Helper to isolate and hide previous message trail (quoted text, On ... wrote, etc.)
@@ -193,7 +185,16 @@ export async function GET(request: Request) {
           const date = headers.find(h => h.name?.toLowerCase() === 'date')?.value || '';
           const messageIdHeader = headers.find(h => h.name?.toLowerCase() === 'message-id')?.value || '';
 
-          const rawBody = extractBody(msg.data.payload) || msg.data.snippet || '';
+          const extracted = extractBody(msg.data.payload);
+          const rawBody = extracted.text || msg.data.snippet || '';
+          let htmlBody = extracted.html || '';
+
+          if (htmlBody) {
+             // Basic hiding of quoted trails in HTML
+             htmlBody = htmlBody.replace(/class="gmail_quote"/gi, 'style="display:none;" class="gmail_quote"');
+             htmlBody = htmlBody.replace(/<blockquote/gi, '<blockquote style="display:none;"');
+          }
+
           const { cleanBody, trail } = stripMessageTrail(rawBody);
           const myEmail = (authData.email || '').toLowerCase();
           const isFromMe = from.toLowerCase().includes(myEmail);
@@ -208,6 +209,7 @@ export async function GET(request: Request) {
             date,
             timestamp: parseInt(msg.data.internalDate || '0', 10),
             body: cleanBody,
+            htmlBody: htmlBody,
             trail: trail || null,
             snippet: msg.data.snippet || '',
             isFromMe

@@ -1174,7 +1174,11 @@ export default function App() {
                             </div>
                           )}
                           <div style={{ fontSize: '13px', lineHeight: '1.5', whiteSpace: 'pre-wrap', color: 'var(--ink)' }}>
-                            {cleanBody}
+                            {msg.htmlBody ? (
+                              <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.htmlBody) }} />
+                            ) : (
+                              cleanBody
+                            )}
                           </div>
                           {trail && (
                             <div style={{ marginTop: '8px', borderTop: '1px dashed var(--line)', paddingTop: '6px' }}>
