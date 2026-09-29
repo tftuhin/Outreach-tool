@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Papa from "papaparse";
 import dynamic from "next/dynamic";
+import DOMPurify from "isomorphic-dompurify";
 import "react-quill-new/dist/quill.snow.css";
 
 const ReactQuill = dynamic(() => import("react-quill-new"), { ssr: false });
@@ -1077,7 +1078,7 @@ export default function App() {
                     </div>
                     <ReactQuill 
                       theme="snow"
-                      value={formatForQuill(selectedLead.draft_message?.body)} 
+                      value={DOMPurify.sanitize(formatForQuill(selectedLead.draft_message?.body))} 
                       onChange={(content) => handleInputChange('draft_message.body', content)}
                       style={{background: '#fff', border: 'none', borderRadius: '0 0 8px 8px'}}
                     />
@@ -1394,7 +1395,7 @@ export default function App() {
                     <div style={{fontSize: '12px', fontWeight: 600, color: 'var(--muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em'}}>Live Preview</div>
                     <div 
                       style={{ padding: '16px', borderRadius: '6px', border: '1px solid var(--line)', background: '#fff', minHeight: '100px' }}
-                      dangerouslySetInnerHTML={{ __html: (emailSignature || '<span style="color: var(--muted); font-style: italic;">No signature content</span>').replace(/<p>/gi, '<p style="margin: 0; padding: 0; line-height: 1.2;">') }}
+                      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize((emailSignature || '<span style="color: var(--muted); font-style: italic;">No signature content</span>').replace(/<p>/gi, '<p style="margin: 0; padding: 0; line-height: 1.2;">')) }}
                     />
                   </div>
                 </div>
@@ -1503,7 +1504,7 @@ export default function App() {
               </div>
               <div 
                 style={{fontSize: '13px', color: 'var(--muted)', marginTop: '4px', borderTop: '1px dashed var(--line)', paddingTop: '12px', maxHeight: '350px', overflowY: 'auto', lineHeight: '1.6'}}
-                dangerouslySetInnerHTML={{ __html: (sendTargetLead.draft_message?.body || '') + (emailSignature ? `<div style="margin-top: 16px; margin-bottom: 8px;">Best regards,</div><div>${emailSignature.replace(/<p>/gi, '<p style="margin: 0; padding: 0; line-height: 1.2;">')}</div>` : '') }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize((sendTargetLead.draft_message?.body || '') + (emailSignature ? `<div style="margin-top: 16px; margin-bottom: 8px;">Best regards,</div><div>${emailSignature.replace(/<p>/gi, '<p style="margin: 0; padding: 0; line-height: 1.2;">')}</div>` : '')) }}
               />
             </div>
 
