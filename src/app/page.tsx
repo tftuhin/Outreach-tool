@@ -1242,7 +1242,7 @@ export default function App() {
                             </div>
                           </div>
                           {msg.subject && (
-                            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink)', marginBottom: '4px' }}>
+                            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink)', marginBottom: '4px', wordBreak: 'break-word' }}>
                               {msg.subject}
                             </div>
                           )}
