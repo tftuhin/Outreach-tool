@@ -24,8 +24,8 @@ const cleanPhone = (phone: string) => phone.replace(/[^0-9+]/g, '');
 const formatForQuill = (text: string | undefined | null) => {
   if (!text) return '';
   let str = text.replace(/—/g, '-');
-  // If it doesn't look like HTML (no <p>, <br>, <strong>, etc.), replace newlines with <br>
-  if (!/<[a-z][\s\S]*>/i.test(str)) {
+  // If it doesn't contain <p> or <br> tags, replace newlines with <br>
+  if (!/<\/?(p|br)\b/i.test(str)) {
     return str.replace(/\n/g, '<br/>');
   }
   return str;
