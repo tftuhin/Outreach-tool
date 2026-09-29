@@ -1173,7 +1173,7 @@ export default function App() {
                               {msg.subject}
                             </div>
                           )}
-                          <div style={{ fontSize: '13px', lineHeight: '1.5', whiteSpace: 'pre-wrap', color: 'var(--ink)' }}>
+                          <div style={{ fontSize: '13px', lineHeight: '1.5', whiteSpace: msg.htmlBody ? 'normal' : 'pre-wrap', color: 'var(--ink)' }}>
                             {msg.htmlBody ? (
                               <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.htmlBody) }} />
                             ) : (
