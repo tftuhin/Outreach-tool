@@ -753,6 +753,15 @@ export default function App() {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {
+      // Ignore
+    }
+    window.location.href = '/login';
+  };
+
   return (
     <div className="app-container">
       {activeMenuId && (
@@ -963,6 +972,52 @@ export default function App() {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '6px'}}><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
               Settings
             </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '4px', borderLeft: '1px solid var(--line)', paddingLeft: '10px' }}>
+              <div 
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'var(--bg)',
+                  padding: '4px 10px',
+                  borderRadius: '20px',
+                  border: '1px solid var(--line)',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: 'var(--ink)'
+                }}
+                title="Logged in as Tuhin"
+              >
+                <span style={{
+                  width: '18px',
+                  height: '18px',
+                  borderRadius: '50%',
+                  background: 'var(--accent)',
+                  color: '#fff',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '10px',
+                  fontWeight: 700
+                }}>
+                  T
+                </span>
+                <span>Tuhin</span>
+              </div>
+              <button 
+                className="btn" 
+                style={{ padding: '6px 10px', fontSize: '12px', fontWeight: 600, color: 'var(--bad)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                onClick={handleLogout}
+                title="Sign out of Outreach Hub"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+                Logout
+              </button>
+            </div>
           </div>
         </header>
 
@@ -1058,7 +1113,7 @@ export default function App() {
                     <ReactQuill 
                       theme="snow"
                       value={formatForQuill(selectedLead.draft_message?.body)} 
-                      onChange={(content) => handleInputChange('draft_message.body', content)}
+                      onChange={(content: string) => handleInputChange('draft_message.body', content)}
                       style={{background: '#fff', border: 'none'}}
                     />
                   </div>
