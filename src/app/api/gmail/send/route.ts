@@ -98,8 +98,8 @@ export async function POST(request: Request) {
     });
 
     if (res.data.id && leadId) {
-      // If pending, mark as outreached in DB
-      await client.query("UPDATE leads SET status = CASE WHEN status = 'pending' THEN 'outreached' ELSE status END WHERE id = $1", [leadId]);
+      // If pending, mark as outreached in DB, and update last_mail_sent
+      await client.query("UPDATE leads SET status = CASE WHEN status = 'pending' THEN 'outreached' ELSE status END, last_mail_sent = NOW() WHERE id = $1", [leadId]);
     }
     
     await client.end();

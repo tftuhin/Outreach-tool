@@ -56,6 +56,8 @@ export async function GET() {
         body: (row.email_body || '').replace(/—/g, '-'),
       },
       status: row.status,
+      last_mail_sent: row.last_mail_sent,
+      last_response_received: row.last_response_received,
     }));
     
     await client.end();

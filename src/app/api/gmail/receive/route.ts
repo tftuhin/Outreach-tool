@@ -55,7 +55,7 @@ export async function POST() {
       }
       
       if (hasReply) {
-        await client.query("UPDATE leads SET status = 'responded' WHERE id = $1", [lead.id]);
+        await client.query("UPDATE leads SET status = 'responded', last_response_received = NOW() WHERE id = $1", [lead.id]);
         updatedCount++;
         updatedLeadIds.push(lead.id);
       }
