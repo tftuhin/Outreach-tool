@@ -113,6 +113,7 @@ a:hover {
   transition: all 0.2s;
   flex: 1;
   text-align: center;
+  white-space: nowrap;
 }
 
 .tab-btn:hover {

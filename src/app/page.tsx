@@ -724,6 +724,12 @@ export default function App() {
 
   return (
     <div className="app-container">
+      {activeMenuId && (
+        <div 
+          style={{ position: 'fixed', inset: 0, zIndex: 9 }}
+          onClick={() => setActiveMenuId(null)}
+        />
+      )}
       <aside className="sidebar">
         <div className="sidebar-header" style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
           <h1>Zeon Outreach Hub</h1>
@@ -902,7 +908,7 @@ export default function App() {
               </div>
               <button 
                 className="btn" 
-                style={{background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none'}}
+                style={{background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none', whiteSpace: 'nowrap'}}
                 onClick={() => isEditing ? saveLeadEdits() : setIsEditing(true)}
               >
                 {isEditing ? 'Save Details' : 'Edit Details'}
@@ -1358,7 +1364,7 @@ export default function App() {
                 </>
               ) : (
                 <>
-                  <button className="btn" onClick={() => setIsEditing(true)}>Edit Details</button>
+                  <button className="btn" style={{ whiteSpace: 'nowrap' }} onClick={() => setIsEditing(true)}>Edit Details</button>
                   <div style={{flex: 1}}></div>
                   {!isConversationActive && selectedLead && (
                     <button 
@@ -1372,6 +1378,11 @@ export default function App() {
                   {selectedLead.status === 'pending' && (
                     <button className="btn primary" style={{background: '#10b981', color: '#fff', borderColor: '#10b981'}} onClick={() => changeLeadStatus(selectedLead.lead_id, 'outreached')}>
                       ✓ Mark as Outreached
+                    </button>
+                  )}
+                  {selectedLead.status === 'outreached' && (
+                    <button className="btn primary" style={{background: '#8b5cf6', color: '#fff', borderColor: '#8b5cf6'}} onClick={() => changeLeadStatus(selectedLead.lead_id, 'responded')}>
+                      ★ Mark as Responded
                     </button>
                   )}
                   {(selectedLead.status === 'outreached' || selectedLead.status === 'responded') && (
