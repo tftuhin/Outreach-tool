@@ -140,12 +140,51 @@ export default function App() {
   const [conversationSubject, setConversationSubject] = useState<string | undefined>(undefined);
   const [lastMessageIdHeader, setLastMessageIdHeader] = useState<string | undefined>(undefined);
   const [expandedTrails, setExpandedTrails] = useState<Record<string, boolean>>({});
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
   // Settings state
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [emailSignature, setEmailSignature] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
   const [signatureMode, setSignatureMode] = useState<'rich' | 'html'>('rich');
+
+  const handleCopyMessage = (msg: any) => {
+    const textToCopy = msg.body || '';
+    navigator.clipboard.writeText(textToCopy);
+    setActiveMenuId(null);
+    setFeedbackModal({ isOpen: true, type: 'success', title: 'Copied', message: 'Message copied to clipboard' });
+  };
+
+  const handleSendAgain = (msg: any) => {
+    setReplyText(msg.htmlBody || msg.body || '');
+    setActiveMenuId(null);
+    setTimeout(() => {
+      const replyBox = document.querySelector('.reply-editor-container');
+      if (replyBox) {
+        replyBox.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 100);
+  };
+
+  const handleDeleteMessage = async (msg: any) => {
+    setActiveMenuId(null);
+    if (!confirm('Are you sure you want to delete this message?')) return;
+    try {
+      const res = await fetch('/api/gmail/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId: msg.id })
+      });
+      if (res.ok) {
+        setConversation(prev => prev.filter(m => m.id !== msg.id));
+        setFeedbackModal({ isOpen: true, type: 'success', title: 'Deleted', message: 'Message deleted successfully' });
+      } else {
+        throw new Error('Failed to delete');
+      }
+    } catch (e) {
+      setFeedbackModal({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to delete message' });
+    }
+  };
 
   // Fetch leads and modules on mount
   useEffect(() => {
@@ -1166,7 +1205,35 @@ export default function App() {
                             <span style={{ fontWeight: 700, color: msg.isFromMe ? 'var(--accent)' : 'var(--ink)' }}>
                               {msg.isFromMe ? 'You (Sent)' : `${selectedLead.owner_details?.name || selectedLead.business_name} (Reply)`}
                             </span>
-                            <span style={{ fontSize: '10.5px' }}>{msg.date}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }}>
+                              <span style={{ fontSize: '10.5px' }}>{msg.date}</span>
+                              <button 
+                                onClick={() => setActiveMenuId(activeMenuId === msgKey ? null : msgKey)}
+                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '0 4px', color: 'var(--muted)', fontSize: '14px' }}
+                              >
+                                ⋮
+                              </button>
+                              {activeMenuId === msgKey && (
+                                <div style={{
+                                  position: 'absolute',
+                                  right: 0,
+                                  top: '20px',
+                                  background: '#fff',
+                                  border: '1px solid var(--line)',
+                                  borderRadius: '6px',
+                                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                  zIndex: 10,
+                                  width: '120px',
+                                  overflow: 'hidden',
+                                  display: 'flex',
+                                  flexDirection: 'column'
+                                }}>
+                                  <button onClick={() => handleSendAgain(msg)} style={{ padding: '8px 12px', textAlign: 'left', border: 'none', background: 'transparent', fontSize: '12px', cursor: 'pointer', borderBottom: '1px solid var(--line)' }} className="hover:bg-slate-50">Send Again</button>
+                                  <button onClick={() => handleCopyMessage(msg)} style={{ padding: '8px 12px', textAlign: 'left', border: 'none', background: 'transparent', fontSize: '12px', cursor: 'pointer', borderBottom: '1px solid var(--line)' }} className="hover:bg-slate-50">Copy</button>
+                                  <button onClick={() => handleDeleteMessage(msg)} style={{ padding: '8px 12px', textAlign: 'left', border: 'none', background: 'transparent', fontSize: '12px', cursor: 'pointer', color: '#ef4444' }} className="hover:bg-red-50">Delete</button>
+                                </div>
+                              )}
+                            </div>
                           </div>
                           {msg.subject && (
                             <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink)', marginBottom: '4px' }}>
@@ -1260,7 +1327,7 @@ export default function App() {
                         placeholder="Optional BCC (comma-separated)"
                       />
                     </div>
-                    <div style={{ background: '#fff', borderRadius: '6px', border: '1px solid var(--line)', overflow: 'hidden' }}>
+                    <div className="reply-editor-container" style={{ background: '#fff', borderRadius: '6px', border: '1px solid var(--line)', overflow: 'hidden' }}>
                       <ReactQuill 
                         theme="snow"
                         value={replyText} 
