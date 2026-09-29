@@ -782,12 +782,12 @@ export default function App() {
                 <span className={`badge ${getTierClass(lead.tier)}`}>{lead.tier}</span>
                 {lead.area}
               </p>
-              {(lead.last_mail_sent || lead.last_response_received) && (
-                <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  {lead.last_mail_sent && <div>Sent: {new Date(lead.last_mail_sent).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>}
-                  {lead.last_response_received && <div>Reply: {new Date(lead.last_response_received).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>}
-                </div>
-              )}
+              <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                {lead.status === 'pending' && <div>Added: --</div>}
+                {lead.status === 'outreached' && lead.last_mail_sent && <div>Outreached: {new Date(lead.last_mail_sent).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>}
+                {lead.status === 'responded' && lead.last_response_received && <div>Responded: {new Date(lead.last_response_received).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>}
+                {lead.status === 'responded' && !lead.last_response_received && lead.last_mail_sent && <div>Sent: {new Date(lead.last_mail_sent).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>}
+              </div>
             </div>
           ))}
           {!isLoading && filteredLeads.length === 0 && (

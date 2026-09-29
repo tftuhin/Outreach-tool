@@ -37,7 +37,9 @@ export async function POST() {
 
     // Check inbox for replies from any of these emails
     for (const lead of outreachedLeads) {
-      const emailsToCheck = [lead.email, lead.alt_email].filter(Boolean);
+      const emailText = `${lead.email || ''} ${lead.alt_email || ''}`;
+      const validEmails = emailText.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi) || [];
+      const emailsToCheck = [...new Set(validEmails)];
       let hasReply = false;
       
       for (const email of emailsToCheck) {

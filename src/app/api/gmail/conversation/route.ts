@@ -131,12 +131,17 @@ export async function GET(request: Request) {
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
     // Search messages related to this email address
-    const q = `to:${email} OR from:${email}`;
+    const cleanEmail = email.trim();
+    const q = `to:${cleanEmail} OR from:${cleanEmail}`;
+    console.log(`[Gmail Sync] Searching for conversation with: ${q}`);
+    
     const listRes = await gmail.users.messages.list({
       userId: 'me',
       q,
       maxResults: 20
     });
+
+    console.log(`[Gmail Sync] Found ${listRes.data.messages?.length || 0} messages for query: ${q}`);
 
     if (!listRes.data.messages || listRes.data.messages.length === 0) {
       return NextResponse.json({ connected: true, messages: [] });
