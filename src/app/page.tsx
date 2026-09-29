@@ -1078,7 +1078,7 @@ export default function App() {
                     </div>
                     <ReactQuill 
                       theme="snow"
-                      value={DOMPurify.sanitize(formatForQuill(selectedLead.draft_message?.body))} 
+                      value={formatForQuill(selectedLead.draft_message?.body)} 
                       onChange={(content) => handleInputChange('draft_message.body', content)}
                       style={{background: '#fff', border: 'none', borderRadius: '0 0 8px 8px'}}
                     />
