@@ -21,64 +21,83 @@ export async function POST(request: Request) {
 
     for (const lead of leads) {
       // Basic validation
-      if (!lead.business_name) continue;
+      const bName = lead.business_name || lead.clinic_name;
+      if (!bName) continue;
+
+      const emailAddress = lead.email || lead.contact_info?.email;
 
       // Check for duplicates
       const checkDupeQuery = `
         SELECT business_name FROM leads 
-        WHERE (email = $1 AND email IS NOT NULL) 
+        WHERE (email = $1 AND email IS NOT NULL AND email != '') 
            OR (business_name = $2 AND module = $3)
         LIMIT 1
       `;
-      const checkDupeValues = [lead.email || null, lead.business_name, module || 'Dentist'];
+      const checkDupeValues = [emailAddress || null, bName, module || 'Dentist'];
       const dupeRes = await client.query(checkDupeQuery, checkDupeValues);
       
       if (dupeRes.rows.length > 0) {
-        duplicates.push(lead.business_name);
+        duplicates.push(bName);
         continue; // Skip duplicate
+      }
+
+      // Auto-generate ID or use provided
+      let newId = lead.lead_id || lead.id;
+      if (!newId) {
+        const maxRes = await client.query("SELECT id FROM leads WHERE id LIKE 'lead_%'");
+        const maxNum = maxRes.rows.reduce((max: number, r: any) => {
+          const num = parseInt(r.id.replace('lead_', ''), 10);
+          return isNaN(num) ? max : Math.max(max, num);
+        }, 0);
+        newId = `lead_${String(maxNum + 1).padStart(3, '0')}`;
       }
 
       const query = `
         INSERT INTO leads (
-          module, tier, business_name, area, owner_name, license_credentials,
+          id, module, tier, business_name, area, owner_name, license_credentials,
           graduation_experience, phone_whatsapp, email, alt_email, website,
           facebook, linkedin, google_maps, address, location_note, business_size,
           hours, founder_age_est, age_flag, opened_since, other_channels_notes,
-          sources, local_competitors, whatsapp_message, email_subject, email_body
+          sources, local_competitors, snapshot, growth_signals, automation_angle,
+          whatsapp_message, email_subject, email_body
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
-          $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27
+          $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31
         )
       `;
       
       const values = [
+        newId,
         module || 'Dentist',
         lead.tier || 'Tier 3',
-        lead.business_name,
+        bName,
         lead.area || null,
-        lead.owner_name || null,
-        lead.license_credentials || null,
-        lead.graduation_experience || null,
-        lead.phone_whatsapp || null,
-        lead.email || null,
-        lead.alt_email || null,
-        lead.website || null,
-        lead.facebook || null,
-        lead.linkedin || null,
-        lead.google_maps || null,
-        lead.address || null,
-        lead.location_note || null,
-        lead.business_size || null,
-        lead.hours || null,
-        lead.founder_age_est || null,
-        lead.age_flag || null,
-        lead.opened_since || null,
-        lead.other_channels_notes || null,
-        lead.sources || null,
-        lead.local_competitors || null,
-        lead.whatsapp_message ? lead.whatsapp_message.replace(/—/g, '-') : null,
-        lead.email_subject ? lead.email_subject.replace(/—/g, '-') : null,
-        lead.email_body ? lead.email_body.replace(/—/g, '-') : null
+        lead.owner_details?.name || lead.owner_name || null,
+        lead.owner_details?.registration_proxy || lead.license_credentials || null,
+        lead.owner_details?.graduation_experience || lead.graduation_experience || null,
+        lead.contact_info?.phone_whatsapp || lead.phone_whatsapp || null,
+        emailAddress || null,
+        lead.contact_info?.alt_email || lead.alt_email || null,
+        lead.contact_info?.website || lead.website || null,
+        lead.contact_info?.facebook || lead.facebook || null,
+        lead.contact_info?.linkedin || lead.linkedin || null,
+        lead.contact_info?.google_maps || lead.google_maps || null,
+        lead.contact_info?.address || lead.address || null,
+        lead.contact_info?.location_note || lead.location_note || null,
+        lead.business_context?.business_size || lead.business_size || null,
+        lead.business_context?.hours || lead.hours || null,
+        lead.business_context?.founder_age_est || lead.founder_age_est || null,
+        lead.business_context?.age_flag || lead.age_flag || null,
+        lead.business_context?.opened_since || lead.opened_since || null,
+        lead.business_context?.other_channels_notes || lead.other_channels_notes || null,
+        lead.business_context?.sources || lead.sources || null,
+        lead.business_context?.local_competitors || lead.local_competitors || null,
+        lead.marketing_angles?.snapshot || lead.snapshot || null,
+        lead.marketing_angles?.growth_signals || lead.growth_signals || null,
+        lead.marketing_angles?.automation_angle || lead.automation_angle || null,
+        lead.draft_message?.whatsapp ? lead.draft_message.whatsapp.replace(/—/g, '-') : lead.whatsapp_message || null,
+        lead.draft_message?.subject ? lead.draft_message.subject.replace(/—/g, '-') : lead.email_subject || null,
+        lead.draft_message?.body ? lead.draft_message.body.replace(/—/g, '-') : lead.email_body || null
       ];
 
       await client.query(query, values);
