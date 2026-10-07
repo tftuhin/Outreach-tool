@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { Client } from 'pg';
 
 export async function GET() {
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json({ signature: '' });
+  }
+
   try {
     const client = new Client({
       connectionString: process.env.DATABASE_URL,
@@ -25,7 +29,7 @@ export async function GET() {
     return NextResponse.json({ signature });
   } catch (error) {
     console.error('Error fetching settings:', error);
-    return NextResponse.json({ error: 'Failed to fetch settings' }, { status: 500 });
+    return NextResponse.json({ signature: '' });
   }
 }
 

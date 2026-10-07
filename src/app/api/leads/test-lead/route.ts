@@ -41,7 +41,7 @@ export async function GET(request: Request) {
       automation_angle: 'Instant Gmail outreach delivery test + follow-up workflow.',
       whatsapp_message: 'Assalamu Alaikum Tuhin - this is a test message from your Zeon Outreach Hub application.',
       email_subject: 'Zeon Outreach Tool - Test Outreach Email for Tuhin',
-      email_body: 'Hello Tuhin,\n\nThis is a live test outreach email sent directly through your connected Gmail account using the Zeon Outreach Tool.\n\nEverything is working as expected:\n- Direct Gmail API dispatch\n- Custom modal confirmation\n- Automatic status tracking\n\nBest regards,\nS. M. Tariquzzaman (Tuhin)\nZeon Studio • Themefisher',
+      email_body: 'Hello Tuhin,\n\nThis is a live test outreach email sent directly through your connected Gmail account using the Zeon Outreach Tool.\n\nEverything is working as expected:\n- Direct Gmail API dispatch\n- Custom modal confirmation\n- Automatic status tracking',
       status: 'pending'
     };
 

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { Client } from 'pg';
+import { cleanDraftBody } from '@/lib/cleanDraft';
 
 export async function POST(request: Request) {
   const { module, leads } = await request.json();
@@ -97,7 +98,7 @@ export async function POST(request: Request) {
         lead.marketing_angles?.automation_angle || lead.automation_angle || null,
         lead.draft_message?.whatsapp ? lead.draft_message.whatsapp.replace(/—/g, '-') : lead.whatsapp_message || null,
         lead.draft_message?.subject ? lead.draft_message.subject.replace(/—/g, '-') : lead.email_subject || null,
-        lead.draft_message?.body ? lead.draft_message.body.replace(/—/g, '-') : lead.email_body || null
+        lead.draft_message?.body ? cleanDraftBody(lead.draft_message.body.replace(/—/g, '-')) : (lead.email_body ? cleanDraftBody(lead.email_body.replace(/—/g, '-')) : null)
       ];
 
       await client.query(query, values);

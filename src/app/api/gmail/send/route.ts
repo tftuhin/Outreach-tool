@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getGoogleAuth } from '@/lib/googleAuth';
 import { Client } from 'pg';
 import { google } from 'googleapis';
+import { cleanDraftBody } from '@/lib/cleanDraft';
 
 function createMimeMessage(to: string, cc: string | undefined, bcc: string | undefined, subject: string, body: string, inReplyTo?: string, references?: string): string {
   const lines = [
@@ -75,10 +76,16 @@ export async function POST(request: Request) {
     if (signature) {
       // Apply zero margin to paragraphs in the signature to reduce line spacing
       signature = signature.replace(/<p>/gi, '<p style="margin: 0; padding: 0; line-height: 1.2;">');
-      signature = `<div style="margin-top: 16px; margin-bottom: 8px;">Best regards,</div><div>${signature}</div>`;
+      const hasSignoff = /^\s*(?:<[^>]+>)*\s*(?:Best regards|Kind regards|Warm regards|Regards|Sincerely)[,\.]?/i.test(signature);
+      if (!hasSignoff) {
+        signature = `<div style="margin-top: 16px; margin-bottom: 8px;">Best regards,</div><div>${signature}</div>`;
+      } else {
+        signature = `<div style="margin-top: 16px; margin-bottom: 8px;"></div><div>${signature}</div>`;
+      }
     }
     
-    const finalBody = signature ? `${body}${signature}` : body;
+    const cleanedBody = cleanDraftBody(body);
+    const finalBody = signature ? `${cleanedBody}${signature}` : cleanedBody;
 
     const oauth2Client = getGoogleAuth();
     oauth2Client.setCredentials(authData.tokens);
@@ -98,8 +105,8 @@ export async function POST(request: Request) {
     });
 
     if (res.data.id && leadId) {
-      // If pending, mark as outreached in DB, and update last_mail_sent
-      await client.query("UPDATE leads SET status = CASE WHEN status = 'pending' THEN 'outreached' ELSE status END, last_mail_sent = NOW() WHERE id = $1", [leadId]);
+      // If pending, mark as outreached in DB, clear is_reviewed, and update last_mail_sent
+      await client.query("UPDATE leads SET status = CASE WHEN status = 'pending' THEN 'outreached' ELSE status END, is_reviewed = false, last_mail_sent = NOW() WHERE id = $1", [leadId]);
     }
     
     await client.end();

@@ -3,10 +3,19 @@
 import { useState, useEffect } from "react";
 import Papa from "papaparse";
 import dynamic from "next/dynamic";
-import DOMPurify from "isomorphic-dompurify";
+import DOMPurify from "dompurify";
 import "react-quill-new/dist/quill.snow.css";
+import { cleanDraftBody } from "@/lib/cleanDraft";
 
 const ReactQuill = dynamic(() => import("react-quill-new"), { ssr: false });
+
+const sanitizeHtml = (html: string | undefined | null): string => {
+  if (!html) return '';
+  if (typeof window !== 'undefined' && DOMPurify && typeof DOMPurify.sanitize === 'function') {
+    return DOMPurify.sanitize(html);
+  }
+  return html;
+};
 
 const getFirstUrl = (text: string | undefined | null) => {
   if (!text) return undefined;
@@ -150,6 +159,23 @@ export default function App() {
     onAction?: () => void;
   } | null>(null);
 
+  // Batch send reviewed emails state
+  const [isBatchSendModalOpen, setIsBatchSendModalOpen] = useState(false);
+  const [batchSending, setBatchSending] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<{
+    current: number;
+    total: number;
+    currentLeadName: string;
+    results: { leadId: string; name: string; email: string; success: boolean; error?: string }[];
+    done: boolean;
+  }>({
+    current: 0,
+    total: 0,
+    currentLeadName: '',
+    results: [],
+    done: false
+  });
+
   // Responded tab red dot notification
   const [hasNewResponses, setHasNewResponses] = useState(false);
 
@@ -222,21 +248,36 @@ export default function App() {
     fetch('/api/leads')
       .then(res => res.json())
       .then(data => {
-        setLeads(data);
+        if (Array.isArray(data)) {
+          setLeads(data);
+        } else {
+          console.warn("API /api/leads did not return an array:", data);
+          setLeads([]);
+        }
         setIsLoading(false);
       })
       .catch(err => {
         console.error("Failed to load leads", err);
+        setLeads([]);
         setIsLoading(false);
       });
       
     fetch('/api/modules')
       .then(res => res.json())
       .then(data => {
-        setModules(data);
-        if (data.length > 0) setActiveModule(data[0].name);
+        if (Array.isArray(data) && data.length > 0) {
+          setModules(data);
+          setActiveModule(data[0].name);
+        } else {
+          setModules([{ id: 1, name: "Dentist" }]);
+          setActiveModule("Dentist");
+        }
       })
-      .catch(console.error);
+      .catch(err => {
+        console.error("Failed to load modules", err);
+        setModules([{ id: 1, name: "Dentist" }]);
+        setActiveModule("Dentist");
+      });
 
     fetch('/api/auth/google/status')
       .then(res => res.json())
@@ -260,7 +301,7 @@ export default function App() {
 
   // Check localStorage for unseen responses once leads load
   useEffect(() => {
-    if (leads.length === 0) return;
+    if (!Array.isArray(leads) || leads.length === 0) return;
     const currentResponded = leads.filter((l: any) => l.status === 'responded').length;
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('last_seen_responded_count');
@@ -285,22 +326,24 @@ export default function App() {
         if (data.success && data.updatedCount > 0) {
           const leadsRes = await fetch('/api/leads');
           const newLeads = await leadsRes.json();
-          setLeads(newLeads);
-          setHasNewResponses(true);
+          if (Array.isArray(newLeads)) {
+            setLeads(newLeads);
+            setHasNewResponses(true);
 
-          // If current selected lead was one of the replied leads, reload its conversation
-          if (selectedLeadId && data.updatedLeadIds?.includes(selectedLeadId)) {
-            const currentLead = newLeads.find((l: any) => l.lead_id === selectedLeadId);
-            if (currentLead?.contact_info?.email && currentLead.contact_info.email.includes('@')) {
-              fetch(`/api/gmail/conversation?email=${encodeURIComponent(currentLead.contact_info.email)}&alt_email=${encodeURIComponent(currentLead.contact_info.alt_email || '')}`)
-                .then(r => r.json())
-                .then(d => {
-                  setConversation(d.messages || []);
-                  setConversationThreadId(d.threadId);
-                  setConversationSubject(d.lastSubject);
-                  setLastMessageIdHeader(d.lastMessageIdHeader);
-                })
-                .catch(console.error);
+            // If current selected lead was one of the replied leads, reload its conversation
+            if (selectedLeadId && data.updatedLeadIds?.includes(selectedLeadId)) {
+              const currentLead = newLeads.find((l: any) => l.lead_id === selectedLeadId);
+              if (currentLead?.contact_info?.email && currentLead.contact_info.email.includes('@')) {
+                fetch(`/api/gmail/conversation?email=${encodeURIComponent(currentLead.contact_info.email)}&alt_email=${encodeURIComponent(currentLead.contact_info.alt_email || '')}`)
+                  .then(r => r.json())
+                  .then(d => {
+                    setConversation(d.messages || []);
+                    setConversationThreadId(d.threadId);
+                    setConversationSubject(d.lastSubject);
+                    setLastMessageIdHeader(d.lastMessageIdHeader);
+                  })
+                  .catch(console.error);
+              }
             }
           }
         }
@@ -318,7 +361,8 @@ export default function App() {
     };
   }, [gmailConnected, selectedLeadId]);
 
-  const selectedLead = leads.find(l => l.lead_id === selectedLeadId);
+  const safeLeads = Array.isArray(leads) ? leads : [];
+  const selectedLead = safeLeads.find(l => l.lead_id === selectedLeadId);
   const isConversationActive = selectedLead ? (selectedLead.status === 'responded' || conversation.length > 0) : false;
 
   // Fetch conversation when selected lead changes
@@ -386,25 +430,26 @@ export default function App() {
     }
 
     // Optimistic update
-    setLeads(leads.map(l => l.lead_id === leadId ? { ...l, status: newStatus } : l));
+    setLeads(safeLeads.map(l => l.lead_id === leadId ? { ...l, status: newStatus, is_reviewed: newStatus === 'outreached' ? false : l.is_reviewed } : l));
     
     // API call
     try {
       await fetch(`/api/leads/${leadId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
+        body: JSON.stringify({ status: newStatus, is_reviewed: newStatus === 'outreached' ? false : undefined })
       });
     } catch (err) {
       console.error("Failed to update status", err);
     }
   };
 
-  
-  const moduleLeads = leads.filter(lead => (lead.module || 'Dentist') === activeModule);
+  const moduleLeads = safeLeads.filter(lead => (lead.module || 'Dentist') === activeModule);
   const pendingCount = moduleLeads.filter(l => l.status === 'pending').length;
   const outreachedCount = moduleLeads.filter(l => l.status === 'outreached').length;
   const respondedCount = moduleLeads.filter(l => l.status === 'responded').length;
+  const reviewedLeads = moduleLeads.filter(l => l.status === 'pending' && l.is_reviewed);
+  const reviewedCount = reviewedLeads.length;
 
   const filteredLeads = moduleLeads.filter(lead => {
     if (activeTab === "pending") return lead.status === "pending";
@@ -436,7 +481,7 @@ export default function App() {
       updatedLead[keys[0]][keys[1]] = value;
     }
 
-    setLeads(leads.map(l => l.lead_id === updatedLead.lead_id ? updatedLead : l));
+    setLeads(safeLeads.map(l => l.lead_id === updatedLead.lead_id ? updatedLead : l));
   };
 
   const saveLeadEdits = async () => {
@@ -467,7 +512,12 @@ export default function App() {
             : 'Checked inbox. No new replies found at this time.'
         });
         if (data.updatedCount > 0) {
-          fetch('/api/leads').then(res => res.json()).then(setLeads);
+          fetch('/api/leads')
+            .then(res => res.json())
+            .then(d => {
+              if (Array.isArray(d)) setLeads(d);
+            })
+            .catch(console.error);
         }
       } else {
         setFeedbackModal({
@@ -502,7 +552,7 @@ export default function App() {
           cc: lead.draft_message?.cc,
           bcc: lead.draft_message?.bcc,
           subject: (lead.draft_message?.subject || '').replace(/—/g, '-'),
-          body: (lead.draft_message?.body || '').replace(/—/g, '-')
+          body: cleanDraftBody((lead.draft_message?.body || '').replace(/—/g, '-'))
         })
       });
       const data = await res.json();
@@ -519,7 +569,7 @@ export default function App() {
           }
         }
         
-        setLeads(leads.map(l => l.lead_id === lead.lead_id ? { ...l, status: 'outreached' } : l));
+        setLeads(safeLeads.map(l => l.lead_id === lead.lead_id ? { ...l, status: 'outreached', is_reviewed: false } : l));
         setFeedbackModal({
           isOpen: true,
           type: 'success',
@@ -545,6 +595,193 @@ export default function App() {
     } finally {
       setSendingEmail(false);
     }
+  };
+
+  const saveDraftToDatabase = async (leadToSave?: any) => {
+    const lead = leadToSave || selectedLead;
+    if (!lead || !lead.lead_id) return;
+    try {
+      await fetch(`/api/leads/${lead.lead_id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          is_reviewed: lead.is_reviewed,
+          email_subject: (lead.draft_message?.subject || '').replace(/—/g, '-'),
+          email_body: cleanDraftBody((lead.draft_message?.body || '').replace(/—/g, '-')),
+          whatsapp_message: (lead.draft_message?.whatsapp || '').replace(/—/g, '-'),
+          email: lead.contact_info?.email || '',
+          alt_email: lead.contact_info?.alt_email || ''
+        })
+      });
+    } catch (err) {
+      console.error("Failed to save draft to database", err);
+    }
+  };
+
+  // Debounced auto-save for mail draft edits to ensure DB is always up to date
+  useEffect(() => {
+    if (!selectedLead || !selectedLead.lead_id) return;
+    const timer = setTimeout(() => {
+      saveDraftToDatabase(selectedLead);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [
+    selectedLead?.draft_message?.subject,
+    selectedLead?.draft_message?.body,
+    selectedLead?.draft_message?.whatsapp,
+    selectedLead?.contact_info?.email
+  ]);
+
+  const toggleReviewLead = async (lead: any) => {
+    if (!lead) return;
+    const newReviewedState = !lead.is_reviewed;
+
+    // 1. Optimistic update
+    const updatedLead = {
+      ...lead,
+      is_reviewed: newReviewedState
+    };
+    setLeads(safeLeads.map(l => l.lead_id === lead.lead_id ? updatedLead : l));
+
+    // 2. Persist to DB: both is_reviewed AND latest mail draft / contact info
+    try {
+      await fetch(`/api/leads/${lead.lead_id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          is_reviewed: newReviewedState,
+          email_subject: (lead.draft_message?.subject || '').replace(/—/g, '-'),
+          email_body: cleanDraftBody((lead.draft_message?.body || '').replace(/—/g, '-')),
+          whatsapp_message: (lead.draft_message?.whatsapp || '').replace(/—/g, '-'),
+          email: lead.contact_info?.email || '',
+          alt_email: lead.contact_info?.alt_email || ''
+        })
+      });
+    } catch (err) {
+      console.error("Failed to update reviewed status and draft", err);
+    }
+  };
+
+  const executeBatchSendReviewed = async () => {
+    if (!gmailConnected) {
+      setFeedbackModal({
+        isOpen: true,
+        type: 'warning',
+        title: 'Gmail Not Connected',
+        message: 'Please connect your Gmail account in the top bar before sending outreach emails.',
+        actionLabel: 'Connect Gmail',
+        onAction: () => { window.location.href = '/api/auth/google'; }
+      });
+      return;
+    }
+
+    const toSend = moduleLeads.filter(l => l.status === 'pending' && l.is_reviewed);
+    if (toSend.length === 0) return;
+
+    setBatchSending(true);
+    setBatchProgress({
+      current: 0,
+      total: toSend.length,
+      currentLeadName: toSend[0]?.business_name || '',
+      results: [],
+      done: false
+    });
+
+    const results: { leadId: string; name: string; email: string; success: boolean; error?: string }[] = [];
+    const updatedLeadIds: string[] = [];
+
+    for (let i = 0; i < toSend.length; i++) {
+      const lead = toSend[i];
+      setBatchProgress(prev => ({
+        ...prev,
+        current: i + 1,
+        currentLeadName: lead.business_name
+      }));
+
+      if (!lead.contact_info?.email || !lead.contact_info.email.includes('@')) {
+        results.push({
+          leadId: lead.lead_id,
+          name: lead.business_name,
+          email: lead.contact_info?.email || 'Missing',
+          success: false,
+          error: 'No valid email address provided'
+        });
+        continue;
+      }
+
+      if (!lead.draft_message?.subject || !lead.draft_message?.body) {
+        results.push({
+          leadId: lead.lead_id,
+          name: lead.business_name,
+          email: lead.contact_info.email,
+          success: false,
+          error: 'Missing email subject or body'
+        });
+        continue;
+      }
+
+      try {
+        const res = await fetch('/api/gmail/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            leadId: lead.lead_id,
+            to: lead.contact_info.email,
+            cc: lead.draft_message?.cc,
+            bcc: lead.draft_message?.bcc,
+            subject: (lead.draft_message.subject || '').replace(/—/g, '-'),
+            body: cleanDraftBody((lead.draft_message.body || '').replace(/—/g, '-'))
+          })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          results.push({
+            leadId: lead.lead_id,
+            name: lead.business_name,
+            email: lead.contact_info.email,
+            success: true
+          });
+          updatedLeadIds.push(lead.lead_id);
+        } else {
+          results.push({
+            leadId: lead.lead_id,
+            name: lead.business_name,
+            email: lead.contact_info.email,
+            success: false,
+            error: data.error || 'Failed to dispatch email'
+          });
+        }
+      } catch (err: any) {
+        results.push({
+          leadId: lead.lead_id,
+          name: lead.business_name,
+          email: lead.contact_info.email,
+          success: false,
+          error: err?.message || 'Network error'
+        });
+      }
+
+      if (i < toSend.length - 1) {
+        await new Promise(r => setTimeout(r, 600));
+      }
+    }
+
+    // Move successfully sent leads to outreached
+    setLeads(prevLeads =>
+      prevLeads.map(l =>
+        updatedLeadIds.includes(l.lead_id)
+          ? { ...l, status: 'outreached', is_reviewed: false, last_mail_sent: new Date().toISOString() }
+          : l
+      )
+    );
+
+    setBatchProgress(prev => ({
+      ...prev,
+      results,
+      done: true
+    }));
+    setBatchSending(false);
   };
 
   const handleReviewAndSend = (lead: any) => {
@@ -794,7 +1031,7 @@ export default function App() {
                   value={activeModule}
                   onChange={(e) => { setActiveModule(e.target.value); setSelectedLeadId(null); }}
                 >
-                  {modules.map(m => (
+                  {(Array.isArray(modules) ? modules : []).map(m => (
                     <option key={m.id} value={m.name}>{m.name}</option>
                   ))}
                 </select>
@@ -918,7 +1155,26 @@ export default function App() {
               className={`lead-card ${selectedLead?.lead_id === lead.lead_id ? "selected" : ""}`}
               onClick={() => { setSelectedLeadId(lead.lead_id); setIsEditing(false); }}
             >
-              <h3>{lead.business_name}</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
+                <h3 style={{ margin: 0, flex: 1 }}>{lead.business_name}</h3>
+                {lead.status === 'pending' && lead.is_reviewed && (
+                  <span 
+                    style={{ 
+                      fontSize: '10px', 
+                      fontWeight: 700, 
+                      background: '#dcfce7', 
+                      color: '#15803d', 
+                      border: '1px solid #86efac', 
+                      borderRadius: '10px', 
+                      padding: '1px 6px',
+                      whiteSpace: 'nowrap'
+                    }}
+                    title="Staged in reviewed group"
+                  >
+                    ✓ Reviewed
+                  </span>
+                )}
+              </div>
               <p>
                 <span className={`badge ${getTierClass(lead.tier)}`}>{lead.tier}</span>
                 {lead.area}
@@ -958,6 +1214,72 @@ export default function App() {
                 Connect Gmail
               </a>
             )}
+
+            <button 
+              className="btn"
+              onClick={() => {
+                if (!gmailConnected) {
+                  setFeedbackModal({
+                    isOpen: true,
+                    type: 'warning',
+                    title: 'Gmail Not Connected',
+                    message: 'Please connect your Gmail account in the top bar before sending outreach emails.',
+                    actionLabel: 'Connect Gmail',
+                    onAction: () => { window.location.href = '/api/auth/google'; }
+                  });
+                  return;
+                }
+                if (reviewedCount === 0) {
+                  setFeedbackModal({
+                    isOpen: true,
+                    type: 'warning',
+                    title: 'No Reviewed Leads',
+                    message: 'There are no pending leads marked as reviewed. Click the "Reviewed" button on pending leads to stage them in this group.'
+                  });
+                  return;
+                }
+                setBatchProgress({
+                  current: 0,
+                  total: reviewedCount,
+                  currentLeadName: '',
+                  results: [],
+                  done: false
+                });
+                setIsBatchSendModalOpen(true);
+              }}
+              style={{
+                padding: '6px 12px',
+                fontSize: '12px',
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: reviewedCount > 0 ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : '#f8fafc',
+                color: reviewedCount > 0 ? '#ffffff' : '#64748b',
+                border: reviewedCount > 0 ? '1px solid #0284c7' : '1px solid var(--line)',
+                boxShadow: reviewedCount > 0 ? '0 2px 8px rgba(2, 132, 199, 0.35)' : 'none',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                borderRadius: '6px'
+              }}
+              title={reviewedCount > 0 ? `Send ${reviewedCount} reviewed outreach emails` : "No leads in reviewed group"}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+              <span>Send all reviewed mails</span>
+              <span style={{
+                background: reviewedCount > 0 ? '#ffffff' : '#e2e8f0',
+                color: reviewedCount > 0 ? '#0369a1' : '#64748b',
+                padding: '1px 7px',
+                borderRadius: '10px',
+                fontSize: '11px',
+                fontWeight: 700
+              }}>
+                {reviewedCount}
+              </span>
+            </button>
           </div>
           <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
             <button className="btn" style={{padding: '6px 12px', fontSize: '12px', fontWeight: 600}} onClick={() => setIsImportModalOpen(true)}>
@@ -1032,9 +1354,32 @@ export default function App() {
                   <h3 style={{ margin: 0 }}>Email Outreach</h3>
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                     {selectedLead.status === 'pending' && (
-                      <button className="btn primary" style={{background: '#10b981', color: '#fff', borderColor: '#10b981', padding: '4px 10px', fontSize: '12px'}} onClick={() => changeLeadStatus(selectedLead.lead_id, 'outreached')}>
-                        ✓ Mark as Outreached
-                      </button>
+                      <>
+                        <button 
+                          className="btn"
+                          style={selectedLead.is_reviewed 
+                            ? { background: '#059669', color: '#fff', borderColor: '#059669', padding: '4px 12px', fontSize: '12px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '6px' }
+                            : { background: '#f0fdf4', color: '#166534', borderColor: '#bbf7d0', padding: '4px 12px', fontSize: '12px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '6px' }
+                          }
+                          onClick={() => toggleReviewLead(selectedLead)}
+                          title={selectedLead.is_reviewed ? "Lead is in reviewed group (click to unmark)" : "Mark as reviewed and add to background send group"}
+                        >
+                          {selectedLead.is_reviewed ? (
+                            <>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                              <span>Reviewed</span>
+                            </>
+                          ) : (
+                            <>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                              <span>Reviewed</span>
+                            </>
+                          )}
+                        </button>
+                        <button className="btn primary" style={{background: '#10b981', color: '#fff', borderColor: '#10b981', padding: '4px 10px', fontSize: '12px'}} onClick={() => changeLeadStatus(selectedLead.lead_id, 'outreached')}>
+                          ✓ Mark as Outreached
+                        </button>
+                      </>
                     )}
                     {selectedLead.status === 'outreached' && (
                       <button className="btn primary" style={{background: '#8b5cf6', color: '#fff', borderColor: '#8b5cf6', padding: '4px 10px', fontSize: '12px'}} onClick={() => changeLeadStatus(selectedLead.lead_id, 'responded')}>
@@ -1059,7 +1404,7 @@ export default function App() {
                           onChange={(e) => handleInputChange('contact_info.email', e.target.value)} 
                           style={{ border: '1px solid transparent', background: 'transparent', outline: 'none', flex: 1, fontSize: '13px', padding: '2px 6px', borderRadius: '4px', transition: 'all 0.2s' }} 
                           onFocus={(e) => { e.target.style.border = '1px solid var(--line)'; e.target.style.background = '#fff'; }}
-                          onBlur={(e) => { e.target.style.border = '1px solid transparent'; e.target.style.background = 'transparent'; }}
+                          onBlur={(e) => { e.target.style.border = '1px solid transparent'; e.target.style.background = 'transparent'; saveDraftToDatabase(selectedLead); }}
                           placeholder="No email provided"
                         />
                       </div>
@@ -1071,7 +1416,7 @@ export default function App() {
                           onChange={(e) => handleInputChange('draft_message.cc', e.target.value)} 
                           style={{ border: '1px solid transparent', background: 'transparent', outline: 'none', flex: 1, fontSize: '13px', padding: '2px 6px', borderRadius: '4px', transition: 'all 0.2s' }} 
                           onFocus={(e) => { e.target.style.border = '1px solid var(--line)'; e.target.style.background = '#fff'; }}
-                          onBlur={(e) => { e.target.style.border = '1px solid transparent'; e.target.style.background = 'transparent'; }}
+                          onBlur={(e) => { e.target.style.border = '1px solid transparent'; e.target.style.background = 'transparent'; saveDraftToDatabase(selectedLead); }}
                           placeholder="Optional CC (comma-separated)"
                         />
                       </div>
@@ -1083,13 +1428,36 @@ export default function App() {
                           onChange={(e) => handleInputChange('draft_message.bcc', e.target.value)} 
                           style={{ border: '1px solid transparent', background: 'transparent', outline: 'none', flex: 1, fontSize: '13px', padding: '2px 6px', borderRadius: '4px', transition: 'all 0.2s' }} 
                           onFocus={(e) => { e.target.style.border = '1px solid var(--line)'; e.target.style.background = '#fff'; }}
-                          onBlur={(e) => { e.target.style.border = '1px solid transparent'; e.target.style.background = 'transparent'; }}
+                          onBlur={(e) => { e.target.style.border = '1px solid transparent'; e.target.style.background = 'transparent'; saveDraftToDatabase(selectedLead); }}
                           placeholder="Optional BCC (comma-separated)"
                         />
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button className="btn" onClick={() => copyToClipboard((selectedLead.draft_message?.body || '').replace(/—/g, '-'))}>Copy Body</button>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <button className="btn" onClick={() => copyToClipboard(cleanDraftBody(selectedLead.draft_message?.body || '').replace(/—/g, '-'))}>Copy Body</button>
+                      {selectedLead.status === 'pending' && (
+                        <button 
+                          className="btn"
+                          style={selectedLead.is_reviewed 
+                            ? { background: '#059669', color: '#fff', borderColor: '#059669', padding: '6px 14px', fontSize: '12px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '6px' }
+                            : { background: '#f0fdf4', color: '#166534', borderColor: '#bbf7d0', padding: '6px 14px', fontSize: '12px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '6px' }
+                          }
+                          onClick={() => toggleReviewLead(selectedLead)}
+                          title={selectedLead.is_reviewed ? "Lead is in reviewed group (click to toggle)" : "Mark as reviewed and add to background send group"}
+                        >
+                          {selectedLead.is_reviewed ? (
+                            <>
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                              <span>Reviewed</span>
+                            </>
+                          ) : (
+                            <>
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                              <span>Reviewed</span>
+                            </>
+                          )}
+                        </button>
+                      )}
                       <button 
                         className="btn primary" 
                         onClick={() => handleReviewAndSend(selectedLead)} 
@@ -1106,6 +1474,7 @@ export default function App() {
                       rows={2}
                       value={(selectedLead.draft_message?.subject || '').replace(/—/g, '-')} 
                       onChange={(e) => handleInputChange('draft_message.subject', e.target.value)}
+                      onBlur={() => saveDraftToDatabase(selectedLead)}
                       style={{ resize: 'none', padding: '0', margin: '0' }}
                     />
                   </div>
@@ -1114,8 +1483,17 @@ export default function App() {
                       theme="snow"
                       value={formatForQuill(selectedLead.draft_message?.body)} 
                       onChange={(content: string) => handleInputChange('draft_message.body', content)}
+                      onBlur={() => saveDraftToDatabase(selectedLead)}
                       style={{background: '#fff', border: 'none'}}
                     />
+                  </div>
+                  <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: 'var(--accent)' }}>
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="16" x2="12" y2="12"></line>
+                      <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                    </svg>
+                    <span>Default email signature (from Settings) will be appended automatically upon sending.</span>
                   </div>
                 </div>
               </div>
@@ -1249,7 +1627,7 @@ export default function App() {
                         )}
                         <div style={{ fontSize: '13px', lineHeight: '1.5', whiteSpace: msg.htmlBody ? 'normal' : 'pre-wrap', color: 'var(--ink)', wordBreak: 'break-word', overflowX: 'auto' }}>
                           {msg.htmlBody ? (
-                            <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.htmlBody) }} />
+                            <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(msg.htmlBody) }} />
                           ) : (
                             cleanBody
                           )}
@@ -1761,7 +2139,7 @@ export default function App() {
                     <div style={{fontSize: '12px', fontWeight: 600, color: 'var(--muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em'}}>Live Preview</div>
                     <div 
                       style={{ padding: '16px', borderRadius: '6px', border: '1px solid var(--line)', background: '#fff', minHeight: '100px' }}
-                      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize((emailSignature || '<span style="color: var(--muted); font-style: italic;">No signature content</span>').replace(/<p>/gi, '<p style="margin: 0; padding: 0; line-height: 1.2;">')) }}
+                      dangerouslySetInnerHTML={{ __html: sanitizeHtml((emailSignature || '<span style="color: var(--muted); font-style: italic;">No signature content</span>').replace(/<p>/gi, '<p style="margin: 0; padding: 0; line-height: 1.2;">')) }}
                     />
                   </div>
                 </div>
@@ -1870,7 +2248,11 @@ export default function App() {
               </div>
               <div 
                 style={{fontSize: '13px', color: 'var(--muted)', marginTop: '4px', borderTop: '1px dashed var(--line)', paddingTop: '12px', maxHeight: '350px', overflowY: 'auto', lineHeight: '1.6'}}
-                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize((sendTargetLead.draft_message?.body || '') + (emailSignature ? `<div style="margin-top: 16px; margin-bottom: 8px;">Best regards,</div><div>${emailSignature.replace(/<p>/gi, '<p style="margin: 0; padding: 0; line-height: 1.2;">')}</div>` : '')) }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(cleanDraftBody(sendTargetLead.draft_message?.body || '') + (emailSignature ? (
+                  /^\s*(?:<[^>]+>)*\s*(?:Best regards|Kind regards|Warm regards|Regards|Sincerely)[,\.]?/i.test(emailSignature)
+                    ? `<div style="margin-top: 16px; margin-bottom: 8px;"></div><div>${emailSignature.replace(/<p>/gi, '<p style="margin: 0; padding: 0; line-height: 1.2;">')}</div>`
+                    : `<div style="margin-top: 16px; margin-bottom: 8px;">Best regards,</div><div>${emailSignature.replace(/<p>/gi, '<p style="margin: 0; padding: 0; line-height: 1.2;">')}</div>`
+                ) : '')) }}
               />
             </div>
 
@@ -1887,6 +2269,338 @@ export default function App() {
                 {sendingEmail ? 'Sending...' : 'Send Email'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {isBatchSendModalOpen && (
+        <div style={{position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(3px)'}}>
+          <div style={{background: '#fff', padding: '28px', borderRadius: '16px', width: '680px', maxWidth: '94%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.18)', border: '1px solid var(--line)'}}>
+            {/* Header */}
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px'}}>
+              <div style={{display: 'flex', alignItems: 'center', gap: '14px'}}>
+                <div style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '12px',
+                  background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff',
+                  boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)'
+                }}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                  </svg>
+                </div>
+                <div>
+                  <h2 style={{margin: 0, fontSize: '20px', fontWeight: 800, color: 'var(--ink)', letterSpacing: '-0.02em'}}>
+                    Send All Reviewed Mails
+                  </h2>
+                  <div style={{fontSize: '12.5px', color: 'var(--muted)', marginTop: '3px'}}>
+                    Module: <strong style={{color: 'var(--ink)'}}>{activeModule}</strong> • <strong>{reviewedLeads.length}</strong> lead{reviewedLeads.length !== 1 ? 's' : ''} staged in background group
+                  </div>
+                </div>
+              </div>
+              {!batchSending && (
+                <button 
+                  onClick={() => setIsBatchSendModalOpen(false)}
+                  style={{background: 'transparent', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--muted)', fontSize: '18px', borderRadius: '6px'}}
+                  title="Close"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* State 1: Confirmation / Staged List */}
+            {!batchSending && !batchProgress.done && (
+              <>
+                <div style={{
+                  background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+                  border: '1px solid #bae6fd',
+                  borderRadius: '10px',
+                  padding: '14px 16px',
+                  marginBottom: '20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px'
+                }}>
+                  <div style={{fontSize: '22px'}}>📬</div>
+                  <div style={{fontSize: '13px', color: '#0369a1', lineHeight: '1.5'}}>
+                    You have <strong>{reviewedLeads.length}</strong> reviewed email{reviewedLeads.length !== 1 ? 's' : ''} staged in the background group. Each will be automatically dispatched via your connected Gmail (<strong>{gmailEmail}</strong>) and moved immediately to <strong>Outreached</strong>.
+                  </div>
+                </div>
+
+                <div style={{marginBottom: '14px'}}>
+                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px'}}>
+                    <span style={{fontSize: '12px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em'}}>
+                      Leads in Reviewed Group ({reviewedLeads.length})
+                    </span>
+                    <span style={{fontSize: '11px', color: 'var(--muted)'}}>
+                      All saved draft edits will be sent
+                    </span>
+                  </div>
+
+                  <div style={{
+                    maxHeight: '260px',
+                    overflowY: 'auto',
+                    border: '1px solid var(--line)',
+                    borderRadius: '8px',
+                    background: '#f8fafc',
+                    padding: '8px'
+                  }}>
+                    {reviewedLeads.map((lead, idx) => (
+                      <div 
+                        key={lead.lead_id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '10px 12px',
+                          background: '#fff',
+                          borderRadius: '6px',
+                          border: '1px solid var(--line)',
+                          marginBottom: idx === reviewedLeads.length - 1 ? 0 : '6px',
+                          gap: '12px'
+                        }}
+                      >
+                        <div style={{minWidth: 0, flex: 1}}>
+                          <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                            <span style={{fontWeight: 700, fontSize: '13px', color: 'var(--ink)'}}>
+                              {lead.business_name}
+                            </span>
+                            <span className={`badge ${getTierClass(lead.tier)}`} style={{fontSize: '10px', padding: '1px 6px'}}>
+                              {lead.tier}
+                            </span>
+                            <span style={{fontSize: '11px', color: 'var(--muted)'}}>
+                              • {lead.area}
+                            </span>
+                          </div>
+                          <div style={{fontSize: '12px', color: 'var(--muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
+                            <span style={{color: 'var(--brand)', fontWeight: 500}}>{lead.contact_info?.email || '⚠️ Missing email'}</span>
+                            <span>|</span>
+                            <span style={{overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>Subject: {lead.draft_message?.subject || '(No subject)'}</span>
+                          </div>
+                        </div>
+                        <button
+                          className="btn"
+                          style={{fontSize: '11px', padding: '3px 8px', color: '#ef4444', borderColor: '#fecaca', background: '#fff'}}
+                          onClick={() => toggleReviewLead(lead)}
+                          title="Remove from reviewed group"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{marginTop: '24px', display: 'flex', justifyContent: 'flex-end', gap: '10px'}}>
+                  <button className="btn" onClick={() => setIsBatchSendModalOpen(false)}>
+                    Cancel
+                  </button>
+                  <button 
+                    className="btn primary" 
+                    onClick={executeBatchSendReviewed}
+                    style={{
+                      background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                      borderColor: '#0284c7',
+                      padding: '8px 20px',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      boxShadow: '0 4px 12px rgba(2, 132, 199, 0.35)'
+                    }}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="22" y1="2" x2="11" y2="13"></line>
+                      <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                    Send All {reviewedLeads.length} Mails Now
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* State 2: Sending in Progress */}
+            {batchSending && (
+              <div style={{padding: '16px 0'}}>
+                <div style={{marginBottom: '20px'}}>
+                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px'}}>
+                    <span style={{fontSize: '13px', fontWeight: 600, color: 'var(--ink)'}}>
+                      Sending {batchProgress.current} of {batchProgress.total} emails...
+                    </span>
+                    <span style={{fontSize: '13px', fontWeight: 700, color: 'var(--brand)'}}>
+                      {Math.round((batchProgress.current / batchProgress.total) * 100)}%
+                    </span>
+                  </div>
+                  {/* Progress bar container */}
+                  <div style={{width: '100%', height: '10px', background: '#e2e8f0', borderRadius: '5px', overflow: 'hidden'}}>
+                    <div style={{
+                      width: `${Math.round((batchProgress.current / batchProgress.total) * 100)}%`,
+                      height: '100%',
+                      background: 'linear-gradient(90deg, #0284c7 0%, #10b981 100%)',
+                      transition: 'width 0.4s ease'
+                    }} />
+                  </div>
+                </div>
+
+                <div style={{
+                  padding: '14px',
+                  background: '#f8fafc',
+                  border: '1px solid var(--line)',
+                  borderRadius: '8px',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px'
+                }}>
+                  <div style={{
+                    width: '18px',
+                    height: '18px',
+                    border: '2px solid var(--brand)',
+                    borderTopColor: 'transparent',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite'
+                  }} />
+                  <div style={{fontSize: '13px', color: 'var(--ink)'}}>
+                    Currently dispatching: <strong>{batchProgress.currentLeadName}</strong>
+                  </div>
+                </div>
+
+                {/* Real-time results feed */}
+                <div style={{maxHeight: '200px', overflowY: 'auto', border: '1px solid var(--line)', borderRadius: '8px', padding: '8px', background: '#fff'}}>
+                  {batchProgress.results.map((res, i) => (
+                    <div 
+                      key={i}
+                      style={{
+                        padding: '6px 10px',
+                        fontSize: '12px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        borderBottom: i === batchProgress.results.length - 1 ? 'none' : '1px solid #f1f5f9'
+                      }}
+                    >
+                      <span style={{fontWeight: 600, color: 'var(--ink)'}}>{res.name}</span>
+                      {res.success ? (
+                        <span style={{color: '#15803d', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px'}}>
+                          ✓ Sent & Outreached
+                        </span>
+                      ) : (
+                        <span style={{color: '#dc2626', fontWeight: 600}}>
+                          ❌ {res.error}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* State 3: Finished / Summary */}
+            {batchProgress.done && (
+              <div style={{padding: '10px 0'}}>
+                {(() => {
+                  const successCount = batchProgress.results.filter(r => r.success).length;
+                  const failCount = batchProgress.results.filter(r => !r.success).length;
+                  return (
+                    <>
+                      <div style={{
+                        background: failCount === 0 ? '#dcfce7' : '#fef3c7',
+                        border: `1px solid ${failCount === 0 ? '#86efac' : '#fde047'}`,
+                        borderRadius: '10px',
+                        padding: '16px',
+                        textAlign: 'center',
+                        marginBottom: '20px'
+                      }}>
+                        <div style={{
+                          width: '42px',
+                          height: '42px',
+                          borderRadius: '50%',
+                          background: failCount === 0 ? '#15803d' : '#b45309',
+                          color: '#fff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          margin: '0 auto 10px auto',
+                          fontSize: '20px'
+                        }}>
+                          {failCount === 0 ? '✓' : '!'}
+                        </div>
+                        <h3 style={{margin: '0 0 6px 0', fontSize: '17px', color: failCount === 0 ? '#15803d' : '#92400e'}}>
+                          {failCount === 0 ? 'All Reviewed Emails Sent Successfully!' : 'Outreach Dispatch Completed with Notices'}
+                        </h3>
+                        <p style={{margin: 0, fontSize: '13px', color: failCount === 0 ? '#166534' : '#78350f'}}>
+                          {successCount} email{successCount !== 1 ? 's' : ''} successfully delivered via Gmail and moved to <strong>Outreached</strong>.
+                          {failCount > 0 && ` ${failCount} email(s) could not be sent (details below).`}
+                        </p>
+                      </div>
+
+                      <div style={{maxHeight: '220px', overflowY: 'auto', border: '1px solid var(--line)', borderRadius: '8px', padding: '8px', background: '#fff', marginBottom: '20px'}}>
+                        {batchProgress.results.map((res, i) => (
+                          <div 
+                            key={i}
+                            style={{
+                              padding: '8px 10px',
+                              fontSize: '12.5px',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              borderBottom: i === batchProgress.results.length - 1 ? 'none' : '1px solid #f1f5f9'
+                            }}
+                          >
+                            <div>
+                              <div style={{fontWeight: 600, color: 'var(--ink)'}}>{res.name}</div>
+                              <div style={{fontSize: '11px', color: 'var(--muted)'}}>{res.email}</div>
+                            </div>
+                            {res.success ? (
+                              <span style={{color: '#15803d', background: '#f0fdf4', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700}}>
+                                ✓ Outreached
+                              </span>
+                            ) : (
+                              <span style={{color: '#b91c1c', background: '#fef2f2', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600}}>
+                                ⚠️ {res.error}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      <div style={{display: 'flex', justifyContent: 'flex-end', gap: '10px'}}>
+                        <button 
+                          className="btn" 
+                          onClick={() => {
+                            setIsBatchSendModalOpen(false);
+                          }}
+                        >
+                          Close
+                        </button>
+                        <button 
+                          className="btn primary" 
+                          onClick={() => {
+                            setIsBatchSendModalOpen(false);
+                            setActiveTab("outreached");
+                            const outreached = safeLeads.filter(l => (l.module || 'Dentist') === activeModule && l.status === 'outreached');
+                            if (outreached.length > 0) {
+                              setSelectedLeadId(outreached[0].lead_id);
+                            }
+                          }}
+                          style={{padding: '8px 16px', fontSize: '13px', fontWeight: 600}}
+                        >
+                          View Outreached Leads ({outreachedCount}) →
+                        </button>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -43,6 +43,7 @@ model Lead {
   emailBody             String
   
   status                String   @default("pending") // pending, outreached, responded
+  isReviewed            Boolean  @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 }
